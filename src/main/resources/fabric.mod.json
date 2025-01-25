@@ -13,13 +13,10 @@
     },
     "license": "GNU Affero General Public License v3.0",
     "icon": "assets/mc-missile/icon.png",
-    "environment": "*",
+    "environment": "server",
     "entrypoints": {
         "main": [
             "com.chrisbesch.mcmissile.MCMissile"
-        ],
-        "client": [
-            "com.chrisbesch.mcmissile.MCMissileClient"
         ]
     },
     "mixins": [
