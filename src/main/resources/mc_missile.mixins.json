@@ -1,0 +1,11 @@
+{
+    "required": true,
+    "package": "com.chrisbesch.mcmissile.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "server": [
+        "MissileMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

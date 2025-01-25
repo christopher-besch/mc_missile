@@ -18,16 +18,10 @@ repositories {
 	// for more information about repositories.
 }
 
-loom {
-	splitEnvironmentSourceSets()
-
-	mods {
-		"mc-missile" {
-			sourceSet sourceSets.main
-			sourceSet sourceSets.client
-		}
+fabricApi {
+	configureDataGeneration {
+		client = true
 	}
-
 }
 
 dependencies {

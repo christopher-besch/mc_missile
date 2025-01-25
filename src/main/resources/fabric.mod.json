@@ -1,30 +1,29 @@
 {
     "schemaVersion": 1,
-    "id": "mc-missile",
+    "id": "mc_missile",
     "version": "${version}",
     "name": "mc_missile",
-    "description": "Minecraft Mod adding Guided Missiles",
+    "description": "Minecraft Guided Missile Mod",
     "authors": [
         "Christopher Besch <mail@chris-besch.com>"
     ],
     "contact": {
-        "homepage": "chris-besch.com",
-        "sources": "https://github.com/christopher-besch/mc_missile"
+        "homepage": "https://fabricmc.net/",
+        "sources": "https://github.com/FabricMC/fabric-example-mod"
     },
-    "license": "GNU Affero General Public License v3.0",
-    "icon": "assets/mc-missile/icon.png",
-    "environment": "server",
+    "license": "GNU AFFERO GENERAL PUBLIC LICENSE v3",
+    "icon": "assets/mc_missile/icon.png",
+    "environment": "*",
     "entrypoints": {
         "main": [
-            "com.chrisbesch.mcmissile.MCMissile"
+            "com.chrisbesch.mcmissile.Mc_missile"
+        ],
+        "fabric-datagen": [
+            "com.chrisbesch.mcmissile.Mc_missileDataGenerator"
         ]
     },
     "mixins": [
-        "mc-missile.mixins.json",
-        {
-            "config": "mc-missile.client.mixins.json",
-            "environment": "client"
-        }
+        "mc_missile.mixins.json"
     ],
     "depends": {
         "fabricloader": ">=0.16.10",
