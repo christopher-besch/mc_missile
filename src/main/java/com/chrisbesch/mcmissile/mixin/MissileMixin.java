@@ -12,6 +12,10 @@ import net.minecraft.world.World;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.entity.projectile.ProjectileUtil;
+// import net.minecraft.entity.data.DataTracker;
+// import net.minecraft.item.ItemStack;
+import net.minecraft.entity.EntityType;
+import net.minecraft.world.World;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.Math;
 
 @Mixin(FireworkRocketEntity.class)
-public class MissileMixin {
+public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -38,10 +42,14 @@ public class MissileMixin {
     private boolean isMissile = false;
     private int missileId;
 
+    // this constructor is only needed to make the compiler happy
+    public MissileMixin(EntityType<? extends ProjectileEntity> entityType, World world) {
+        super(entityType, world);
+    }
+
     @Inject(at = @At("HEAD"), method = "tick()V", cancellable = true)
     private void tickInject(CallbackInfo info) {
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
-        ProjectileEntity superObject = (ProjectileEntity)(Object)this;
 
         if (tickCount == 0) {
             // TODO: determine
@@ -53,8 +61,7 @@ public class MissileMixin {
         // overwrite original tick method
         // TODO: check everything the original does is done here as well
         if (this.isMissile) {
-            // TODO: this doesn't work and just appears to call the same tick method again!
-            // superObject.tick();
+            super.tick();
             LOGGER.info("missile tick {}", ++this.tickCount);
 
             // launch
@@ -100,15 +107,15 @@ public class MissileMixin {
         ++tickCount;
     }
 
-    @Inject(at = @At("HEAD"), method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V", cancellable = true)
-    private void onEntityHitInject(EntityHitResult entityHitResult, CallbackInfo info) {
-        LOGGER.info("missile entity hit");
-    }
+    // @Inject(at = @At("HEAD"), method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V", cancellable = true)
+    // private void onEntityHitInject(EntityHitResult entityHitResult, CallbackInfo info) {
+    //     LOGGER.info("missile entity hit");
+    // }
 
-    @Inject(at = @At("HEAD"), method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V", cancellable = true)
-    private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
-        LOGGER.info("missile block hit");
-    }
+    // @Inject(at = @At("HEAD"), method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V", cancellable = true)
+    // private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
+    //     LOGGER.info("missile block hit");
+    // }
 
     @Inject(at = @At("HEAD"), method = "explode(Lnet/minecraft/server/world/ServerWorld;)V", cancellable = true)
     private void explodeInject(ServerWorld world, CallbackInfo info) {
@@ -118,4 +125,16 @@ public class MissileMixin {
         world.createExplosion(thisObject, thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
         // world.createExplosion(thisObject, Explosion.createDamageSource(world, thisObject), thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
     }
+
+    // @Override
+    // public void initDataTracker(DataTracker.Builder builder) {
+    //     FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+    //     thisObject.initDataTracker(builder);
+    // }
+
+    // @Override
+    // public ItemStack getStack() {
+    //     FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+    //     return thisObject.getStack();
+    // }
 }
