@@ -1,5 +1,6 @@
 package com.chrisbesch.mcmissile.mixin;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.FlyingItemEntity;
@@ -24,10 +25,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // import org.spongepowered.asm.mixin.gen.Accessor;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.entity.MovementType;
 
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.Vec3d;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +57,21 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private String missileName;
     private int socketId;
     private int missileId;
+
+    // simulation parameters
+    // the velocity and position is stored in the entity superclass
+    private double dryMass = 30.0D;
+    private double propellant = 60.0D;
+    // assuming a solid rocket motor
+    private final double exhaustVelocity = 1500.0D;
+    private final double exhaustVelocityVariance = 10.0D;
+    // assuming Earth
+    private final double gravitationalAcceleration = 9.81D;
+    private final double dragCoefficient = 0.2D;
+    private final double dragCoefficientVariance = 0.001D;
+    // assuming sea-level
+    private final double airDensity = 1.225D;
+    private final double airDensityVariance = 0.05D;
 
     // this constructor is only needed to make the compiler happy
     public MissileMixin(EntityType<? extends ProjectileEntity> entityType, World world) {
@@ -107,11 +125,23 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
         LOGGER.info("missile launch");
-        // thisObject.updateRotation(); is not needed as we set the rotation below
+        // TODO: this might not be required if this is not needed as we set the rotation below
+        // set the rotation to be parallel with the initial velocity vector
+        thisObject.updateRotation();
         if (!thisObject.isSilent()) {
             LOGGER.info("sound");
             thisObject.getWorld().playSound(null, thisObject.getX(), thisObject.getY(), thisObject.getZ(),
                     SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
+        }
+
+        thisObject.setVelocity(Vec3d.ZERO);
+
+        // add movement of crossbow owner
+        Entity owner = thisObject.getOwner();
+        if (owner != null) {
+            LOGGER.info("applying owner velocity");
+            // TODO: this doesn't seem to work
+            thisObject.setVelocity(thisObject.getVelocity().add(owner.getVelocity()));
         }
         // TODO: establish connection
     }
@@ -122,22 +152,25 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // TODO: maybe set life to 1 if the client receives that update, too
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
-        // TODO: use data from connection
-        double velX = 1.0D;
-        double velY = 0.0D;
-        double velZ = 0.0D;
-        // TODO: maybe set velocity directly without normalizing and then scaling again
-        float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
-        thisObject.setVelocity(velX, velY, velZ, length, 0.0F);
+        // TODO: update velocity
+        // double velX = 1.0D;
+        // double velY = 0.0D;
+        // double velZ = 0.0D;
+        // // TODO: maybe set velocity directly without normalizing and then scaling again
+        // float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
+        // thisObject.setVelocity(vel);
+
+        Vec3d vel = this.getVelocity();
+        thisObject.move(MovementType.SELF, vel);
 
         // TODO: check rotation is correctly set
-        double posX = 0.0D;
-        double posY = 160.0D;
-        double posZ = 0.0D;
-        float yaw = (float) (MathHelper.atan2(velX, velZ) * 180.0F / (float) Math.PI);
-        float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) * 180.0F / (float) Math.PI);
-        // maybe use setPosition instead
-        thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
+        // double posX = 0.0D;
+        // double posY = 160.0D;
+        // double posZ = 0.0D;
+        // float yaw = (float) (MathHelper.atan2(velX, velZ) * 180.0F / (float) Math.PI);
+        // float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) * 180.0F / (float) Math.PI);
+        // // maybe use setPosition instead
+        // thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
     }
 
     // this completely replaces the original tick method
@@ -152,11 +185,18 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             this.launchMissile();
         }
 
+        if (this.tickCount != 1) {
+            // TODO: use control data from connection
+            updateMissile();
+        }
         // entity collision check
         // we can always hit, this::canHit would be cleaner though
+        // do this after the update to ensure we don't hit ourselfs at launch
+        // TODO: hits with other rockets from same launcher create problems
         HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
-        updateMissile();
+        // TODO: fix comment
         // in the original code this is run after the movement is applied so do it like this here, too
+        // TODO: block collision doesn't work
         // block collision check
         thisObject.tickBlockCollision();
 

@@ -2,6 +2,7 @@ accessWidener v2 named
 
 accessible method net/minecraft/entity/projectile/ProjectileEntity hitOrDeflect (Lnet/minecraft/util/hit/HitResult;)Lnet/minecraft/entity/ProjectileDeflection;
 accessible method net/minecraft/entity/projectile/FireworkRocketEntity explodeAndRemove (Lnet/minecraft/server/world/ServerWorld;)V
+accessible method net/minecraft/entity/projectile/ProjectileEntity updateRotation ()V
 
 # not actually needed for overwrite when creating an abstract class
 # accessible method net/minecraft/entity/Entity initDataTracker (Lnet/minecraft/entity/data/DataTracker$Builder;)V
