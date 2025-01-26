@@ -22,6 +22,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // import org.spongepowered.asm.mixin.gen.Accessor;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,6 +53,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private void tickInject(CallbackInfo info) {
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
+        // determine if this is a missile
         if (tickCount == 0) {
             // TODO: determine
             // TODO: check is shot at angle
@@ -58,14 +61,23 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // TODO: check type of rocket
             this.isMissile = true;
         }
+
         // overwrite original tick method
         // TODO: check everything the original does is done here as well
         if (this.isMissile) {
             super.tick();
-            LOGGER.info("missile tick {}", ++this.tickCount);
+            LOGGER.info("missile tick {}", this.tickCount);
 
             // launch
             if (this.tickCount == 0) {
+                LOGGER.info("missile launch");
+                // thisObject.updateRotation(); is not needed as we set the rotation below
+                if (!thisObject.isSilent()) {
+                    LOGGER.info("sound");
+                    thisObject.getWorld().playSound(null, thisObject.getX(), thisObject.getY(), thisObject.getZ(),
+                            SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
+                }
+
                 this.missileId = this.random.nextInt();
                 // TODO: establish connection
             }
@@ -84,6 +96,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
             thisObject.setVelocity(velX, velY, velZ, length, 0.0F);
 
+            // TODO: check rotation is correctly set
             double posX = 0.0D;
             double posY = 160.0D;
             double posZ = 0.0D;
@@ -121,6 +134,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private void explodeInject(ServerWorld world, CallbackInfo info) {
         LOGGER.info("missile explode");
 
+        // TODO: only overwrite missile
+        // TODO: stop default explode
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
         world.createExplosion(thisObject, thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
         // world.createExplosion(thisObject, Explosion.createDamageSource(world, thisObject), thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
