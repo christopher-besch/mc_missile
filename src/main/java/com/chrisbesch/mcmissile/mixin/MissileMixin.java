@@ -49,75 +49,100 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         super(entityType, world);
     }
 
-    @Inject(at = @At("HEAD"), method = "tick()V", cancellable = true)
-    private void tickInject(CallbackInfo info) {
+    private void detectMissile() {
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
-        // determine if this is a missile
+        // TODO: determine
+        // TODO: check name of rocket
+        // TODO: check type of rocket
+        // shotatangle when shot by crossbow or dispenser
+        this.isMissile = thisObject.wasShotAtAngle();
+    }
+
+    private void launchMissile() {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+
+        LOGGER.info("missile launch");
+        // thisObject.updateRotation(); is not needed as we set the rotation below
+        if (!thisObject.isSilent()) {
+            LOGGER.info("sound");
+            thisObject.getWorld().playSound(null, thisObject.getX(), thisObject.getY(), thisObject.getZ(),
+                    SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
+        }
+
+        this.missileId = this.random.nextInt();
+        // TODO: establish connection
+    }
+
+    // update the position and velocity
+    private void updateMissile() {
+        // TODO: maybe set life to 1 if the client receives that update, too
+        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+
+        // TODO: use data from connection
+        double velX = 1.0D;
+        double velY = 0.0D;
+        double velZ = 0.0D;
+        // TODO: maybe set velocity directly without normalizing and then scaling again
+        float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
+        thisObject.setVelocity(velX, velY, velZ, length, 0.0F);
+
+        // TODO: check rotation is correctly set
+        double posX = 0.0D;
+        double posY = 160.0D;
+        double posZ = 0.0D;
+        float yaw = (float) (MathHelper.atan2(velX, velZ) * 180.0F / (float) Math.PI);
+        float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) * 180.0F / (float) Math.PI);
+        // maybe use setPosition instead
+        thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
+    }
+
+    // this completely replaces the original tick method
+    private void missileTick() {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+
+        super.tick();
+        LOGGER.info("missile tick {}", this.tickCount);
+
+        if (this.tickCount == 0) {
+            this.launchMissile();
+        }
+
+        // entity collision check
+        // we can always hit, this::canHit would be cleaner though
+        HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
+        updateMissile();
+        // in the original code this is run after the movement is applied so do it like this here, too
+        // block collision check
+        thisObject.tickBlockCollision();
+
+        if (!thisObject.noClip && thisObject.isAlive() && hitResult.getType() != HitResult.Type.MISS) {
+            thisObject.hitOrDeflect(hitResult);
+            thisObject.velocityDirty = true;
+        }
+
+        // should detonate?
+        if (this.tickCount >= this.missileSelfDestructCount && thisObject.getWorld() instanceof ServerWorld serverWorld) {
+            thisObject.explodeAndRemove(serverWorld);
+        }
+
+        // increase life
+        ++tickCount;
+    }
+
+    @Inject(at = @At("HEAD"), method = "tick()V", cancellable = true)
+    private void tickInject(CallbackInfo info) {
         if (tickCount == 0) {
-            // TODO: determine
-            // TODO: check is shot at angle
-            // TODO: check name of rocket
-            // TODO: check type of rocket
-            this.isMissile = true;
+            detectMissile();
         }
 
         // overwrite original tick method
-        // TODO: check everything the original does is done here as well
         if (this.isMissile) {
-            super.tick();
-            LOGGER.info("missile tick {}", this.tickCount);
-
-            // launch
-            if (this.tickCount == 0) {
-                LOGGER.info("missile launch");
-                // thisObject.updateRotation(); is not needed as we set the rotation below
-                if (!thisObject.isSilent()) {
-                    LOGGER.info("sound");
-                    thisObject.getWorld().playSound(null, thisObject.getX(), thisObject.getY(), thisObject.getZ(),
-                            SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
-                }
-
-                this.missileId = this.random.nextInt();
-                // TODO: establish connection
-            }
-
-            // entity collision check
-            // we can always hit, this::canHit would be cleaner though
-            HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
-            // block collision check
-            thisObject.tickBlockCollision();
-
-            // TODO: use data from connection
-            double velX = 1.0D;
-            double velY = 0.0D;
-            double velZ = 0.0D;
-            // TODO: maybe set velocity directly without normalizing and then scaling again
-            float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
-            thisObject.setVelocity(velX, velY, velZ, length, 0.0F);
-
-            // TODO: check rotation is correctly set
-            double posX = 0.0D;
-            double posY = 160.0D;
-            double posZ = 0.0D;
-            float yaw = (float) (MathHelper.atan2(velX, velZ) * 180.0F / (float) Math.PI);
-            float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) * 180.0F / (float) Math.PI);
-            // maybe use setPosition instead
-            thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
-
-            if (!thisObject.noClip && thisObject.isAlive() && hitResult.getType() != HitResult.Type.MISS) {
-                thisObject.hitOrDeflect(hitResult);
-                thisObject.velocityDirty = true;
-            }
-
-            // should detonate?
-            if (this.tickCount >= this.missileSelfDestructCount && thisObject.getWorld() instanceof ServerWorld serverWorld) {
-                thisObject.explodeAndRemove(serverWorld);
-            }
-
+            this.missileTick();
             info.cancel();
+        } else {
+            ++tickCount;
         }
-        ++tickCount;
     }
 
     // @Inject(at = @At("HEAD"), method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V", cancellable = true)
@@ -132,13 +157,13 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     @Inject(at = @At("HEAD"), method = "explode(Lnet/minecraft/server/world/ServerWorld;)V", cancellable = true)
     private void explodeInject(ServerWorld world, CallbackInfo info) {
-        LOGGER.info("missile explode");
-
-        // TODO: only overwrite missile
-        // TODO: stop default explode
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
-        world.createExplosion(thisObject, thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
-        // world.createExplosion(thisObject, Explosion.createDamageSource(world, thisObject), thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
+        // TODO: check different types
+        if (this.isMissile) {
+            LOGGER.info("missile explode");
+            FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+            world.createExplosion(thisObject, thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
+            info.cancel();
+        }
     }
 
     // @Override
