@@ -25,13 +25,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.item.ItemStack;
+import net.minecraft.text.Text;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.regex.Pattern;
 import java.lang.Math;
+import java.util.regex.Matcher;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
+    private static final Pattern namePattern = Pattern.compile("^mc_missile/(\\d\\d)/(.+)$");
+
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -42,6 +50,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private int missileSelfDestructCount = 100;
     // set to true when this is detected
     private boolean isMissile = false;
+
+    private String missileName;
+    private int socketId;
     private int missileId;
 
     // this constructor is only needed to make the compiler happy
@@ -49,17 +60,50 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         super(entityType, world);
     }
 
-    private void detectMissile() {
+    private void identifyMissile() {
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
-        // TODO: determine
-        // TODO: check name of rocket
-        // TODO: check type of rocket
         // shotatangle when shot by crossbow or dispenser
-        this.isMissile = thisObject.wasShotAtAngle();
+        if (!thisObject.wasShotAtAngle()) {
+            LOGGER.info("rocket wasn't fired at angle");
+            this.isMissile = false;
+            return;
+        }
+
+        Text customName = thisObject.getStack().get(DataComponentTypes.CUSTOM_NAME);
+        if (customName == null) {
+            LOGGER.info("rocket doesn't have a custom name");
+            this.isMissile = false;
+            return;
+        }
+
+        Matcher matcher = namePattern.matcher(customName.getString());
+        if (!matcher.matches()) {
+            LOGGER.info("rocket's name doesn't match missile requirement");
+            this.isMissile = false;
+            return;
+        }
+
+        // TODO: check type of rocket
+        // now we know this is a missile
+        this.isMissile = true;
+
+        try {
+           this.socketId = Integer.parseInt(matcher.group(1));
+        }
+        catch (NumberFormatException e) {
+            // this should never happen
+            LOGGER.error("failed to convert socketId in '{}'", customName.getString());
+            this.isMissile = false;
+            return;
+        }
+        this.missileName = matcher.group(2);
+        this.missileId = this.random.nextInt();
+        LOGGER.info("detected missile {} on socket id {}, missile id {}", this.missileName, this.socketId, this.missileId);
     }
 
     private void launchMissile() {
+        assert this.isMissile;
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
         LOGGER.info("missile launch");
@@ -69,13 +113,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             thisObject.getWorld().playSound(null, thisObject.getX(), thisObject.getY(), thisObject.getZ(),
                     SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
         }
-
-        this.missileId = this.random.nextInt();
         // TODO: establish connection
     }
 
     // update the position and velocity
     private void updateMissile() {
+        assert this.isMissile;
         // TODO: maybe set life to 1 if the client receives that update, too
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
@@ -99,6 +142,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     // this completely replaces the original tick method
     private void missileTick() {
+        assert this.isMissile;
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
         super.tick();
@@ -133,7 +177,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     @Inject(at = @At("HEAD"), method = "tick()V", cancellable = true)
     private void tickInject(CallbackInfo info) {
         if (tickCount == 0) {
-            detectMissile();
+            identifyMissile();
         }
 
         // overwrite original tick method
