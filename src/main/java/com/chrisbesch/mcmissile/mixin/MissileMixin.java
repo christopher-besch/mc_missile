@@ -139,9 +139,11 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // add movement of crossbow owner
         Entity owner = thisObject.getOwner();
         if (owner != null) {
-            LOGGER.info("applying owner velocity");
-            // TODO: this doesn't seem to work
+            LOGGER.info("applying owner velocity {}", owner.getVelocity());
             thisObject.setVelocity(thisObject.getVelocity().add(owner.getVelocity()));
+            thisObject.velocityDirty = true;
+            // TODO: figure out if this is needed
+            thisObject.move(MovementType.SELF, thisObject.getVelocity());
         }
         // TODO: establish connection
     }
@@ -159,6 +161,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // // TODO: maybe set velocity directly without normalizing and then scaling again
         // float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
         // thisObject.setVelocity(vel);
+        // thisObject.velocityDirty = true;
 
         Vec3d vel = this.getVelocity();
         thisObject.move(MovementType.SELF, vel);
