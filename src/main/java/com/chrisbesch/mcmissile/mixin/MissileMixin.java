@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import java.util.regex.Pattern;
 import java.lang.Math;
 import java.util.regex.Matcher;
+import net.minecraft.entity.ProjectileDeflection;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
@@ -59,14 +60,20 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private int missileId;
 
     // simulation parameters
-    // the velocity and position is stored in the entity superclass
+    // the position is stored in the entity superclass
+    // can't be called velocity because a superclass already has an atribute with that name
+    private Vec3d missileVelocity;
     private double dryMass = 30.0D;
-    private double propellant = 60.0D;
-    // assuming a solid rocket motor
-    private final double exhaustVelocity = 1500.0D;
+    private double propellant = 5.0D;
+    // this is a tiny rocket motor suitable for the Minecraft scale
+    private final double exhaustVelocity = 1.0D;
     private final double exhaustVelocityVariance = 10.0D;
     // assuming Earth
-    private final double gravitationalAcceleration = 9.81D;
+    // divide by tick rate of 20
+    // TODO: get actual tick rate
+    // TODO: do something good here
+    // private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -9.81D/20.0D, 0.0D);
+    private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, 0.0D, 0.0D);
     private final double dragCoefficient = 0.2D;
     private final double dragCoefficientVariance = 0.001D;
     // assuming sea-level
@@ -135,15 +142,18 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
 
         thisObject.setVelocity(Vec3d.ZERO);
+        thisObject.velocityDirty = true;
 
         // add movement of crossbow owner
         Entity owner = thisObject.getOwner();
         if (owner != null) {
             LOGGER.info("applying owner velocity {}", owner.getVelocity());
-            thisObject.setVelocity(thisObject.getVelocity().add(owner.getVelocity()));
-            thisObject.velocityDirty = true;
+            this.missileVelocity = owner.getVelocity();
+            // TODO: maybe add this back
+            // thisObject.setVelocity(thisObject.getVelocity().add(owner.getVelocity()));
+            // thisObject.velocityDirty = true;
             // TODO: figure out if this is needed
-            thisObject.move(MovementType.SELF, thisObject.getVelocity());
+            // thisObject.move(MovementType.SELF, thisObject.getVelocity());
         }
         // TODO: establish connection
     }
@@ -154,17 +164,33 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // TODO: maybe set life to 1 if the client receives that update, too
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
 
-        // TODO: update velocity
-        // double velX = 1.0D;
-        // double velY = 0.0D;
-        // double velZ = 0.0D;
-        // // TODO: maybe set velocity directly without normalizing and then scaling again
-        // float length = (float) Math.sqrt(velX*velX + velY*velY + velZ*velZ);
+        double oldPropellant = this.propellant;
+        this.propellant = Math.max(0.0D, this.propellant-0.5D);
+        double spentPropellant = oldPropellant - this.propellant;
+        LOGGER.info("spentPropellant: {}", spentPropellant);
+        LOGGER.info("thrust fac: {}", spentPropellant * this.exhaustVelocity);
+        double weight = this.dryMass + this.propellant;
+
+        Vec3d heading = thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
+        // using Tsiolkovsky's rocket equation
+        Vec3d thrust = heading.multiply(spentPropellant * this.exhaustVelocity);
+        LOGGER.info("heading: {}", heading);
+        // TODO: drag
+        // Vec3d drag = 
+        Vec3d acceleration = (thrust.add(this.gravitationalAcceleration));
+        LOGGER.info("acceleration: {}", acceleration);
+        // TODO: clamp velocity because of Minecraft limitations
+        this.missileVelocity = this.missileVelocity.add(acceleration);
         // thisObject.setVelocity(vel);
         // thisObject.velocityDirty = true;
 
-        Vec3d vel = this.getVelocity();
-        thisObject.move(MovementType.SELF, vel);
+        thisObject.setVelocity(this.missileVelocity);
+        thisObject.velocityDirty = true;
+
+        // vel = new Vec3d(1D, 0D, 0D);
+        LOGGER.info("vel: {}", this.missileVelocity);
+        // thisObject.setPosition(thisObject.getX() + vel.x, thisObject.getY() + vel.y, thisObject.getZ() + vel.z);
+        thisObject.move(MovementType.SELF, this.missileVelocity);
 
         // TODO: check rotation is correctly set
         // double posX = 0.0D;
@@ -240,6 +266,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // @Inject(at = @At("HEAD"), method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V", cancellable = true)
     // private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
     //     LOGGER.info("missile block hit");
+    // }
+    
+    // this doesn't work
+    // @Inject(at = @At("HEAD"), method = "hitOrDeflect(Lnet/minecraft/util/hit/HitResult;)Lnet/minecraft/entity/ProjectileDeflection;", cancellable = true)
+    // private void hitOrDeflectInject(HitResult hitResult, CallbackInfo info) {
+    //     LOGGER.info("missile hitOrDeflect hit");
     // }
 
     @Inject(at = @At("HEAD"), method = "explode(Lnet/minecraft/server/world/ServerWorld;)V", cancellable = true)
