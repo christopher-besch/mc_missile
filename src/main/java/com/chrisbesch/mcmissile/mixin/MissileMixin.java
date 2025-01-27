@@ -27,10 +27,13 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.entity.MovementType;
 
+import net.minecraft.component.type.FireworkExplosionComponent;
+
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.entity.ProjectileDeflection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +41,7 @@ import org.slf4j.LoggerFactory;
 import java.util.regex.Pattern;
 import java.lang.Math;
 import java.util.regex.Matcher;
-import net.minecraft.entity.ProjectileDeflection;
+import java.util.List;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
@@ -94,6 +97,16 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             this.isMissile = false;
             return;
         }
+
+        List<FireworkExplosionComponent> explosions = thisObject.getExplosions();
+        if (explosions.size() == 0) {
+            LOGGER.info("rocket doesn't have explosives");
+            this.isMissile = false;
+            return;
+        }
+        // TODO: figuring out if the rocket has big balls isn't working
+        // var bigBallCount = explosions.stream().filter(e -> e.shape == FireworkExplosionComponent.Type.BIG_BALL).count();
+        // LOGGER.info("{}", bigBallCount);
 
         Text customName = thisObject.getStack().get(DataComponentTypes.CUSTOM_NAME);
         if (customName == null) {
@@ -227,9 +240,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // in the original code this is run after the movement is applied so do it like this here, too
         // TODO: block collision doesn't work
         // block collision check
+        // this only does something when the rocket has explosion effects
         thisObject.tickBlockCollision();
 
+        LOGGER.info("{}", hitResult.getType());
         if (!thisObject.noClip && thisObject.isAlive() && hitResult.getType() != HitResult.Type.MISS) {
+            LOGGER.info("hit");
             thisObject.hitOrDeflect(hitResult);
             thisObject.velocityDirty = true;
         }
@@ -258,15 +274,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    // @Inject(at = @At("HEAD"), method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V", cancellable = true)
-    // private void onEntityHitInject(EntityHitResult entityHitResult, CallbackInfo info) {
-    //     LOGGER.info("missile entity hit");
-    // }
+    @Inject(at = @At("HEAD"), method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V", cancellable = true)
+    private void onEntityHitInject(EntityHitResult entityHitResult, CallbackInfo info) {
+        LOGGER.info("missile entity hit");
+    }
 
-    // @Inject(at = @At("HEAD"), method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V", cancellable = true)
-    // private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
-    //     LOGGER.info("missile block hit");
-    // }
+    @Inject(at = @At("HEAD"), method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V", cancellable = true)
+    private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
+        LOGGER.info("missile block hit");
+    }
     
     // this doesn't work
     // @Inject(at = @At("HEAD"), method = "hitOrDeflect(Lnet/minecraft/util/hit/HitResult;)Lnet/minecraft/entity/ProjectileDeflection;", cancellable = true)
