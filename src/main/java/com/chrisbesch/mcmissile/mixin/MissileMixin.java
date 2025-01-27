@@ -227,7 +227,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             this.launchMissile();
         }
 
-        if (this.tickCount != 1) {
+        if (this.tickCount != 0) {
             // TODO: use control data from connection
             updateMissile();
         }
