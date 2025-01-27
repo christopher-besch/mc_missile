@@ -238,7 +238,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
         // TODO: fix comment
         // in the original code this is run after the movement is applied so do it like this here, too
-        // TODO: block collision doesn't work
+        // TODO: block collision doesn't sometimes work when shot straight down
         // block collision check
         // this only does something when the rocket has explosion effects
         thisObject.tickBlockCollision();
