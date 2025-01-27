@@ -1,3 +1,4 @@
-- ./gradlew genSources
-- ./gradlew validateAccessWidener
-- ./gradlew runServer
+- `./gradlew genSources`
+- `./gradlew validateAccessWidener`
+- `./gradlew runServer`
+- `docker run --net host --rm -ti --name mc_missile_java -v ./:/home/gradle/mc_missile -p 25565:25565 --entrypoint /bin/bash gradle`
