@@ -73,7 +73,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // TODO: get actual tick rate
     // TODO: do something good here
     // private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -9.81D/20.0D, 0.0D);
-    private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, 0.0D, 0.0D);
+    private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -0.2D, 0.0D);
     private final double dragCoefficient = 0.2D;
     private final double dragCoefficientVariance = 0.001D;
     // assuming sea-level
