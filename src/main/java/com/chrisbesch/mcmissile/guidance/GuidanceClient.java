@@ -54,6 +54,6 @@ public class GuidanceClient {
     }
 
     private static String getServerAddress(int connectionId) {
-        return "MinecraftGuidanceControl" + connectionId;
+        return "MinecraftGuidanceControl" + connectionId + ":42069";
     }
 }

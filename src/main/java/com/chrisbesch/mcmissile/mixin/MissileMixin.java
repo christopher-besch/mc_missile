@@ -1,5 +1,11 @@
 package com.chrisbesch.mcmissile.mixin;
 
+import com.chrisbesch.mcmissile.guidance.GuidanceClient;
+import com.chrisbesch.mcmissile.guidance.Missile;
+import com.chrisbesch.mcmissile.guidance.MissileHardwareConfig;
+import com.chrisbesch.mcmissile.guidance.MissileState;
+import com.chrisbesch.mcmissile.guidance.ControlInput;
+
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
@@ -53,13 +59,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // TODO: maybe make final or only create when needed
     private final Random random = Random.create();
 
+    private final GuidanceClient guidanceClient = new GuidanceClient();
+
     private int tickCount = 0;
     private int missileSelfDestructCount = 100;
     // set to true when this is detected
     private boolean isMissile = false;
 
     private String missileName;
-    private int socketId;
+    private int connectionId;
     private int missileId;
 
     // simulation parameters
@@ -127,17 +135,17 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         this.isMissile = true;
 
         try {
-           this.socketId = Integer.parseInt(matcher.group(1));
+           this.connectionId = Integer.parseInt(matcher.group(1));
         }
         catch (NumberFormatException e) {
             // this should never happen
-            LOGGER.error("failed to convert socketId in '{}'", customName.getString());
+            LOGGER.error("failed to convert connectionId in '{}'", customName.getString());
             this.isMissile = false;
             return;
         }
         this.missileName = matcher.group(2);
         this.missileId = this.random.nextInt();
-        LOGGER.info("detected missile {} on socket id {}, missile id {}", this.missileName, this.socketId, this.missileId);
+        LOGGER.info("detected missile {} on socket id {}, missile id {}", this.missileName, this.connectionId, this.missileId);
     }
 
     private void launchMissile() {
@@ -168,7 +176,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // TODO: figure out if this is needed
             // thisObject.move(MovementType.SELF, thisObject.getVelocity());
         }
-        // TODO: establish connection
+        // TODO: set correct budget
+        this.guidanceClient.registerMissile(Missile.newBuilder().setName(this.missileName).setMissileId(this.missileId).setConnectionId(this.connectionId).setBudget(0).build());
     }
 
     // update the position and velocity
