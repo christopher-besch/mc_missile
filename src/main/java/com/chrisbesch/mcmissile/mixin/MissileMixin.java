@@ -1,6 +1,6 @@
 package com.chrisbesch.mcmissile.mixin;
 
-import com.chrisbesch.mcmissile.guidance.GuidanceClient;
+import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
 import com.chrisbesch.mcmissile.guidance.MissileHardwareConfig;
 import com.chrisbesch.mcmissile.guidance.MissileState;
@@ -58,8 +58,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     // TODO: maybe make final or only create when needed
     private final Random random = Random.create();
-
-    private final GuidanceClient guidanceClient = new GuidanceClient();
 
     private int tickCount = 0;
     private int missileSelfDestructCount = 100;
@@ -178,7 +176,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // thisObject.move(MovementType.SELF, thisObject.getVelocity());
         }
         // TODO: set correct budget
-        this.guidanceClient.registerMissile(Missile.newBuilder().setName(this.missileName).setMissileId(this.missileId).setConnectionId(this.connectionId).setBudget(0).build());
+        GuidanceStubManager.getInstance().registerMissile(Missile.newBuilder().setName(this.missileName).setMissileId(this.missileId).setConnectionId(this.connectionId).setBudget(0).build());
     }
 
     // update the position and velocity

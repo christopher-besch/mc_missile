@@ -12,12 +12,23 @@ import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import io.grpc.Grpc;
 
-public class GuidanceClient {
+public /* singleton */ class GuidanceStubManager {
+    private static GuidanceStubManager instance = null;
+
     // one stub for each guidance control server connection
     private HashMap<Integer, GuidanceBlockingStub> blockingStubs = new HashMap<Integer, GuidanceBlockingStub>();
 
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+    private GuidanceStubManager() {}
+
+    public static GuidanceStubManager getInstance() {
+        if (instance == null) {
+            instance = new GuidanceStubManager();
+        }
+        return instance;
+    }
 
     public MissileHardwareConfig registerMissile(Missile missile) {
         GuidanceBlockingStub blockingStub = getBlockingStub(missile.getConnectionId());
@@ -43,13 +54,17 @@ public class GuidanceClient {
     }
 
     private GuidanceBlockingStub getBlockingStub(int connectionId) {
+        LOGGER.info("{}", this.blockingStubs);
         if (this.blockingStubs.get(connectionId) != null) {
+            LOGGER.info("reusing stub");
             return this.blockingStubs.get(connectionId);
         }
+        LOGGER.info("creating new stub");
         ManagedChannel channel = Grpc.newChannelBuilder(getServerAddress(connectionId), InsecureChannelCredentials.create()).build();
         // TODO: catch exception
         GuidanceBlockingStub blockingStub = GuidanceGrpc.newBlockingStub(channel);
         this.blockingStubs.put(connectionId, blockingStub);
+        LOGGER.info("{}", this.blockingStubs);
         return blockingStub;
     }
 
