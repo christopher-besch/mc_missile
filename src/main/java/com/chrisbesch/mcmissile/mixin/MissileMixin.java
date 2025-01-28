@@ -144,7 +144,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             return;
         }
         this.missileName = matcher.group(2);
-        this.missileId = this.random.nextInt();
+        // don't do negative numbers
+        this.missileId = Math.abs(this.random.nextInt());
         LOGGER.info("detected missile {} on socket id {}, missile id {}", this.missileName, this.connectionId, this.missileId);
     }
 
