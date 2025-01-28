@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.chrisbesch.mcmissile.guidance";
+option java_outer_classname = "GuidanceGRPC";
+
+package mcmissile.guidance;
+
+message Missile {
+    string name = 1;
+    int32 missileId = 2;
+    int32 connectionId = 3;
+    int32 budget = 4;
+}
+
+message MissileHardwareConfig {
+}
+
+message MissileState {
+    int32 missileId = 1;
+    int32 connectionId = 2;
+
+    double posX = 3;
+    double posY = 4;
+    double posZ = 5;
+
+    double velX = 6;
+    double velY = 7;
+    double velZ = 8;
+
+    double pitch = 9;
+    double yaw = 10;
+
+    bool destroyed = 11;
+}
+
+message ControlInput {
+    double pitchTurn = 1;
+    double yawTurn = 2;
+
+    bool explode = 3;
+    bool disarm = 4;
+}
+
+service Guidance {
+    rpc RegisterMissile(Missile) returns (MissileHardwareConfig) {}
+
+    rpc GetGuidance(MissileState) returns (ControlInput) {}
+}

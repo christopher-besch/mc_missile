@@ -1,6 +1,7 @@
 plugins {
     id 'fabric-loom' version '1.9-SNAPSHOT'
     id 'maven-publish'
+    id 'com.google.protobuf' version '0.9.4'
 }
 
 version = project.mod_version
@@ -33,6 +34,11 @@ dependencies {
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     
+    // grpc
+    runtimeOnly 'io.grpc:grpc-netty-shaded:1.70.0'
+    implementation 'io.grpc:grpc-protobuf:1.70.0'
+    implementation 'io.grpc:grpc-stub:1.70.0'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53' // necessary for Java 9+
 }
 
 processResources {
@@ -83,4 +89,20 @@ publishing {
 
 loom {
     accessWidenerPath = file("src/main/resources/mc_missile.accesswidener")
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.5"
+    }
+    plugins {
+        grpc {
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.70.0'
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {}
+        }
+    }
 }
