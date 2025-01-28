@@ -12,6 +12,7 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
@@ -194,6 +195,19 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 loadHardwareConfig(controlInput.getHardwareConfig(), false);
             }
             applyControlInput(controlInput);
+            detectEntities(thisObject);
+        }
+    }
+
+    private void detectEntities(FireworkRocketEntity thisObject) {
+        World world = thisObject.getWorld();
+        if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
+            List<LivingEntity> list =
+                    serverWorld.getEntitiesByClass(
+                            LivingEntity.class,
+                            this.getBoundingBox().expand(5.0, 5.0, 5.0),
+                            entityx -> true);
+            LOGGER.info("FOUND TARGETS {}", list.size());
         }
     }
 
@@ -411,9 +425,10 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 return;
             }
         }
-        // entity collision check //
-        // We can always hit, this::canHit would be cleaner though.
-        // Do this after the update to ensure we don't hit ourself at launch.
+        detectEntities(thisObject);
+        // entity collision check
+        // we can always hit, this::canHit would be cleaner though
+        // do this after the update to ensure we don't hit ourselfs at launch
         HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
         // In the original code this is run after the movement is applied so do it like this here,
         // too.
