@@ -194,7 +194,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
         // TODO: use return
-        GuidanceStubManager.getInstance().getGuidance(MissileState.newBuilder().setMissileId(this.missileId).setConnectionId(this.connectionId).setPosX(pos.x).setPosY(pos.y).setPosZ(pos.z).setVelX(vel.x).setVelY(vel.y).setVelZ(vel.z).setPitch(pitch).setYaw(yaw).setTargetLock(false).setDestroyed(true).build());
+        GuidanceStubManager.getInstance().getGuidance(MissileState.newBuilder().setMissileId(this.missileId).setConnectionId(this.connectionId).setPosX(pos.x).setPosY(pos.y).setPosZ(pos.z).setVelX(vel.x).setVelY(vel.y).setVelZ(vel.z).setPitch(pitch).setYaw(yaw).setTargetLock(false).setDestroyed(false).build());
     }
 
     // update the position and velocity
