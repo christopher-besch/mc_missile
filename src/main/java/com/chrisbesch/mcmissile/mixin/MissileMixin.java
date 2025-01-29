@@ -22,6 +22,7 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
@@ -34,7 +35,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -195,20 +198,47 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 loadHardwareConfig(controlInput.getHardwareConfig(), false);
             }
             applyControlInput(controlInput);
-            detectEntities(thisObject);
+        }
+        detectEntities(thisObject, 5, 4, 10);
+    }
+
+    private void detectEntities(
+            FireworkRocketEntity thisObject, int cone_size, int size_increase, int range) {
+        World world = thisObject.getWorld();
+        if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
+            Vec3d heading =
+                    thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
+            Vec3d pos = thisObject.getPos();
+            Set<LivingEntity> targets = new HashSet<LivingEntity>();
+            for (int i = 0; i <= range; i++) {
+                Box area =
+                        getBoxAt(
+                                pos.getX() + i * cone_size * heading.getX(),
+                                pos.getY() + i * cone_size * heading.getY(),
+                                pos.getZ() + i * cone_size * heading.getZ(),
+                                cone_size,
+                                cone_size);
+                cone_size += size_increase;
+                targets.addAll(
+                        serverWorld.getEntitiesByClass(LivingEntity.class, area, entityx -> true));
+            }
+            LOGGER.info("FOUND TARGETS {}", targets.size());
+            for (LivingEntity entity : targets) {
+                entity.setGlowing(true);
+            }
         }
     }
 
-    private void detectEntities(FireworkRocketEntity thisObject) {
-        World world = thisObject.getWorld();
-        if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
-            List<LivingEntity> list =
-                    serverWorld.getEntitiesByClass(
-                            LivingEntity.class,
-                            this.getBoundingBox().expand(5.0, 5.0, 5.0),
-                            entityx -> true);
-            LOGGER.info("FOUND TARGETS {}", list.size());
-        }
+    private Box getBoxAt(double x, double y, double z, double width, double height) {
+        double f = width / 2.0F;
+        double g = height / 2.0F;
+        return new Box(
+                x - (double) f,
+                y - (double) g,
+                z - (double) f,
+                x + (double) f,
+                y + (double) g,
+                z + (double) f);
     }
 
     private void loadDefaultHardwareConfig() {
@@ -425,7 +455,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 return;
             }
         }
-        detectEntities(thisObject);
         // entity collision check
         // we can always hit, this::canHit would be cleaner though
         // do this after the update to ensure we don't hit ourselfs at launch
