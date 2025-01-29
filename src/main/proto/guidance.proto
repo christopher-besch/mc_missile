@@ -14,27 +14,78 @@ message Missile {
 }
 
 message MissileHardwareConfig {
+// airframe
+// - movement stability (noise in rotation)
+// - rotation control speed
+// motor
+// - burn duration, burn profile
+// - burn noise
+// - multi-stage
+// warHeads
+// - sniper arrow without explosion
+// - tnt (different strengths)
+// - effect (different types)
+// - inert
+// - anti-elytra (or anti-air, with anti-rocket)
+// - block-piercing
+// sensors
+// - lock types
+//     - lock-on at launch
+//     - lock-on after launch
+// - seeker types
+//     - specific entity type
+//     - any entity
+//     - specific block
+//     - block straight infront of missile at launch
+// - limitations
+//     - through blocks
+//     - blocked by blocks
+// - range
+// - angle
+// - accuracy
+// target requirements
+// - entity type
+// - player name
+// - block type
+    
+    string targetEntityRegex = 1;
+    string playerNameRegex = 2;
 }
 
 message MissileState {
     int32 missileId = 1;
     int32 connectionId = 2;
 
+    // only to be considered when not destroyed
     double posX = 3;
     double posY = 4;
     double posZ = 5;
 
+    // only to be considered when not destroyed
     double velX = 6;
     double velY = 7;
     double velZ = 8;
 
+    // only to be considered when not destroyed
     double pitch = 9;
     double yaw = 10;
 
-    bool destroyed = 11;
+    // only to be considered when not destroyed and targetLock
+    double targetPosX = 11;
+    double targetPosY = 13;
+    double targetPosZ = 14;
+
+    // only to be considered when not destroyed and targetLock
+    double targetVelX = 15;
+    double targetVelY = 16;
+    double targetVelZ = 17;
+
+    bool targetLock = 18;
+    bool destroyed = 19;
 }
 
 message ControlInput {
+    // only to be considered when not explode
     double pitchTurn = 1;
     double yawTurn = 2;
 
