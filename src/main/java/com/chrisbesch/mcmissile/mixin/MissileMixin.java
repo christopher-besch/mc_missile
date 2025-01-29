@@ -14,6 +14,7 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
+import net.minecraft.entity.passive.AxolotlEntity;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
@@ -26,6 +27,7 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
 import org.slf4j.Logger;
@@ -41,6 +43,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
@@ -199,11 +202,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             }
             applyControlInput(controlInput);
         }
-        detectEntities(thisObject, 5, 4, 10);
+        detectEntities(thisObject, 5, 6, 15, AxolotlEntity.class);
     }
 
-    private void detectEntities(
-            FireworkRocketEntity thisObject, int cone_size, int size_increase, int range) {
+    private <T extends Entity> void detectEntities(
+            FireworkRocketEntity thisObject,
+            int cone_size,
+            int size_increase,
+            int range,
+            Class<T> clazz) {
         World world = thisObject.getWorld();
         if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
             Vec3d heading =
@@ -213,20 +220,52 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             for (int i = 0; i <= range; i++) {
                 Box area =
                         getBoxAt(
-                                pos.getX() + i * cone_size * heading.getX(),
-                                pos.getY() + i * cone_size * heading.getY(),
-                                pos.getZ() + i * cone_size * heading.getZ(),
+                                pos.getX() + i * 0.5 * cone_size * heading.getX(),
+                                pos.getY() + i * 0.5 * cone_size * heading.getY(),
+                                pos.getZ() + i * 0.5 * cone_size * heading.getZ(),
                                 cone_size,
                                 cone_size);
                 cone_size += size_increase;
                 targets.addAll(
-                        serverWorld.getEntitiesByClass(LivingEntity.class, area, entityx -> true));
+                        serverWorld.getEntitiesByClass(AxolotlEntity.class, area, entityx -> true));
             }
-            LOGGER.info("FOUND TARGETS {}", targets.size());
-            for (LivingEntity entity : targets) {
-                entity.setGlowing(true);
+            List<LivingEntity> filter_targets =
+                    targets.stream()
+                            .filter(w -> this.canSee((Entity) w))
+                            .collect(Collectors.toList());
+            LOGGER.info("FOUND TARGETS {}", filter_targets.size());
+            for (LivingEntity entity : filter_targets) {
+                // entity.setGlowing(true);
+            }
+            LivingEntity target = minAngleTarget(filter_targets);
+            if (target != null) {
+                target.setGlowing(true);
             }
         }
+    }
+
+    private LivingEntity minAngleTarget(List<LivingEntity> targets) {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+        Vec3d vec3d =
+                thisObject
+                        .getRotationVector(-thisObject.getPitch(), -thisObject.getYaw())
+                        .normalize();
+        LivingEntity minTarget = null;
+        double angle = 0.0;
+        for (LivingEntity entity : targets) {
+            Vec3d vec3d2 =
+                    new Vec3d(
+                            this.getX() - entity.getX(),
+                            this.getY() - entity.getEyeY(),
+                            this.getZ() - entity.getZ());
+            vec3d2 = vec3d2.normalize();
+            double g = vec3d.dotProduct(vec3d2);
+            if (Math.abs(g) > angle) {
+                angle = Math.abs(g);
+                minTarget = entity;
+            }
+        }
+        return minTarget;
     }
 
     private Box getBoxAt(double x, double y, double z, double width, double height) {
@@ -239,6 +278,35 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 x + (double) f,
                 y + (double) g,
                 z + (double) f);
+    }
+
+    public boolean canSee(Entity entity) {
+        return this.canSee(
+                entity,
+                RaycastContext.ShapeType.COLLIDER,
+                RaycastContext.FluidHandling.NONE,
+                entity.getEyeY());
+    }
+
+    public boolean canSee(
+            Entity entity,
+            RaycastContext.ShapeType shapeType,
+            RaycastContext.FluidHandling fluidHandling,
+            double entityY) {
+        if (entity.getWorld() != this.getWorld()) {
+            return false;
+        } else {
+            Vec3d vec3d = new Vec3d(this.getX(), this.getEyeY(), this.getZ());
+            Vec3d vec3d2 = new Vec3d(entity.getX(), entityY, entity.getZ());
+            return vec3d2.distanceTo(vec3d) > 128.0
+                    ? false
+                    : this.getWorld()
+                                    .raycast(
+                                            new RaycastContext(
+                                                    vec3d, vec3d2, shapeType, fluidHandling, this))
+                                    .getType()
+                            == HitResult.Type.MISS;
+        }
     }
 
     private void loadDefaultHardwareConfig() {
