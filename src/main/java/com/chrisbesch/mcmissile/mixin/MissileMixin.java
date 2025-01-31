@@ -62,7 +62,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private final Random random = Random.create();
 
     private int tickCount = 0;
-    private int missileSelfDestructCount = 100;
+    private int missileSelfDestructCount = 200;
     // set to true when this is detected
     private boolean isMissile = false;
 
@@ -72,8 +72,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     // simulation parameters
     // the position is stored in the entity superclass
-    // can't be called velocity because a superclass already has an atribute with that name
-    private Vec3d missileVelocity;
     private double dryMass = 30.0D;
     private double propellant = 5.0D;
     // this is a tiny rocket motor suitable for the Minecraft scale
@@ -84,7 +82,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // TODO: get actual tick rate
     // TODO: do something good here
     // private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -9.81D/20.0D, 0.0D);
-    private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -0.2D, 0.0D);
+    private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -0.1D, 0.0D);
     private final double dragCoefficient = 0.2D;
     private final double dragCoefficientVariance = 0.001D;
     // assuming sea-level
@@ -164,19 +162,20 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                     SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
         }
 
-        thisObject.setVelocity(Vec3d.ZERO);
-        thisObject.velocityDirty = true;
-
         // add movement of crossbow owner
         Entity owner = thisObject.getOwner();
         if (owner != null) {
             LOGGER.info("applying owner velocity {}", owner.getVelocity());
-            this.missileVelocity = owner.getVelocity();
+            thisObject.setVelocity(getVelocity());
+            thisObject.velocityDirty = true;
             // TODO: maybe add this back
             // thisObject.setVelocity(thisObject.getVelocity().add(owner.getVelocity()));
             // thisObject.velocityDirty = true;
             // TODO: figure out if this is needed
             // thisObject.move(MovementType.SELF, thisObject.getVelocity());
+        } else {
+            thisObject.setVelocity(Vec3d.ZERO);
+            thisObject.velocityDirty = true;
         }
         // TODO: set correct budget
         // TODO: use return
@@ -219,17 +218,18 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Vec3d acceleration = (thrust.add(this.gravitationalAcceleration));
         LOGGER.info("acceleration: {}", acceleration);
         // TODO: clamp velocity because of Minecraft limitations
-        this.missileVelocity = this.missileVelocity.add(acceleration);
-        // thisObject.setVelocity(vel);
         // thisObject.velocityDirty = true;
 
-        thisObject.setVelocity(this.missileVelocity);
-        thisObject.velocityDirty = true;
 
         // vel = new Vec3d(1D, 0D, 0D);
-        LOGGER.info("vel: {}", this.missileVelocity);
+        LOGGER.info("vel: {}", thisObject.getVelocity());
         // thisObject.setPosition(thisObject.getX() + vel.x, thisObject.getY() + vel.y, thisObject.getZ() + vel.z);
-        thisObject.move(MovementType.SELF, this.missileVelocity);
+        thisObject.setVelocity(thisObject.getVelocity().add(acceleration));
+        thisObject.move(MovementType.SELF, thisObject.getVelocity());
+        // set the velocity twice as the velocity might be changed when colliding
+        // the original firework rocket code does this, too
+        thisObject.setVelocity(thisObject.getVelocity().add(acceleration));
+        thisObject.velocityDirty = true;
 
         // TODO: check rotation is correctly set
         // double posX = 0.0D;
@@ -252,9 +252,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
         if (this.tickCount == 0) {
             this.launchMissile();
-        }
-
-        if (this.tickCount != 0) {
+        } else {
             controlMissile();
             updateMissile();
         }
@@ -307,7 +305,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
         // overwrite original tick method
         if (this.isMissile) {
-
             try {
                 this.missileTick();
             } catch (StatusRuntimeException e) {
