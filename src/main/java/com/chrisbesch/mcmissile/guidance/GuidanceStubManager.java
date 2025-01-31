@@ -68,7 +68,11 @@ public /* singleton */ class GuidanceStubManager {
             return this.blockingStubs.get(connectionId);
         }
         LOGGER.info("creating new stub");
-        ManagedChannel channel = Grpc.newChannelBuilder(getServerAddress(connectionId), InsecureChannelCredentials.create()).build();
+        ManagedChannel channel = Grpc.newChannelBuilder(getServerAddress(connectionId), InsecureChannelCredentials.create())
+            .keepAliveTime(500, TimeUnit.MILLISECONDS)
+            .keepAliveTimeout(250, TimeUnit.MILLISECONDS)
+            .idleTimeout(1, TimeUnit.MINUTES)
+            .build();
         // TODO: catch exception
         GuidanceBlockingStub blockingStub = GuidanceGrpc.newBlockingStub(channel);
         this.blockingStubs.put(connectionId, blockingStub);
