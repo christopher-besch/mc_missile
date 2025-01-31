@@ -29,7 +29,7 @@ public /* singleton */ class GuidanceStubManager {
     // the initial connection is always slower than 40ms
     // the connection needs to be established first
     static final int REGISTER_TIMEOUT_MILLIS = 500;
-    static final int GUIDANCE_TIMEOUT_MILLIS = 40;
+    static final int GUIDANCE_TIMEOUT_MILLIS = 20;
 
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
