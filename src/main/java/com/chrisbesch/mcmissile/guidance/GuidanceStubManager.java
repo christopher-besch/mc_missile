@@ -5,7 +5,7 @@ import com.chrisbesch.mcmissile.guidance.GuidanceGrpc.GuidanceStub;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 import java.util.concurrent.TimeUnit;
@@ -13,6 +13,9 @@ import java.util.concurrent.TimeUnit;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
 import io.grpc.Grpc;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+import java.util.concurrent.CountDownLatch;
 
 // This singleton handles connections to the guidance and control server.
 // These will be reused.
@@ -26,10 +29,6 @@ public /* singleton */ class GuidanceStubManager {
     // set this to true to test with a local guidance and control server
     // TODO: localhost doesn't seem to work
     static final boolean LOCALHOST_GUIDANCE_CONTROL = true;
-    // the initial connection is always slower than 40ms
-    // the connection needs to be established first
-    static final int REGISTER_TIMEOUT_MILLIS = 500;
-    static final int GUIDANCE_TIMEOUT_MILLIS = 20;
 
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -37,9 +36,11 @@ public /* singleton */ class GuidanceStubManager {
     private static GuidanceStubManager instance = null;
 
     // one stub for each guidance control server connection
-    private Map<Integer, GuidanceStub> stubs = new HashMap<Integer, GuidanceStub>();
+    private Map<Integer, GuidanceStub> stubs = new ConcurrentHashMap<Integer, GuidanceStub>();
 
-    private Map<Missile, ControlInput> latestControlInputs = new HashMap<Missile, ControlInput>();
+    private Map<Missile, ControlInput> latestControlInputs = new ConcurrentHashMap<Missile, ControlInput>();
+    private Map<Missile, CountDownLatch> finishLatches = new ConcurrentHashMap<Missile, CountDownLatch>();
+    private Map<Missile, StreamObserver<MissileState>> missileStateObservers = new ConcurrentHashMap<Missile, StreamObserver<MissileState>>();
 
     private GuidanceStubManager() {}
 
@@ -50,30 +51,68 @@ public /* singleton */ class GuidanceStubManager {
         return instance;
     }
 
-    // TODO: does it?
-    // throws StatusRuntimeException
-    public void establishGuidanceConnection(MissileState missileState) {
-        // TODO:
-        this.sendMissileState(missileState);
+    public void establishGuidanceConnection(MissileState initialMissileState) {
+        GuidanceStub stub = getStub(initialMissileState.getMissile().getConnectionId());
+        this.finishLatches.put(initialMissileState.getMissile(), new CountDownLatch(1));
+
+        StreamObserver<ControlInput> controlInputObserver = new StreamObserver<ControlInput>() {
+            @Override
+            public void onNext(ControlInput controlInput) {
+                LOGGER.info("received control input: {}", controlInput);
+                GuidanceStubManager.getInstance().latestControlInputs.put(initialMissileState.getMissile(), controlInput);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                LOGGER.error("grpc error: {}", Status.fromThrowable(t));
+                GuidanceStubManager.getInstance().finishLatches.get(initialMissileState.getMissile()).countDown();
+            }
+
+            @Override
+            public void onCompleted() {
+                LOGGER.info("completed grpc connection with {}", initialMissileState.getMissile());
+                GuidanceStubManager.getInstance().finishLatches.get(initialMissileState.getMissile()).countDown();
+            }
+        };
+        this.missileStateObservers.put(initialMissileState.getMissile(), stub.getGuidance(controlInputObserver));
+
+        this.sendMissileState(initialMissileState);
     }
 
     public void endGuidanceConnection(MissileState missileState) {
         this.sendMissileState(missileState);
-        // TODO:
+        this.missileStateObservers.get(missileState.getMissile()).onCompleted();
+        // TODO: maybe on different thread
+        try {
+            if (!this.finishLatches.get(missileState.getMissile()).await(1, TimeUnit.MINUTES)) {
+                LOGGER.warn("getGuidance grpc can not finish within 1 minute");
+            }
+        } catch (InterruptedException e) {
+            LOGGER.error("failed to await end of getGuidance grpc: {}", e.getMessage());
+        }
+        this.latestControlInputs.remove(missileState.getMissile());
+        this.finishLatches.remove(missileState.getMissile());
+        this.missileStateObservers.remove(missileState.getMissile());
     }
 
+    // TODO: maybe rename
     public ControlInput getLatestGuidance(Missile missile) {
         ControlInput latestControlInputCopy = null;
         synchronized (this.latestControlInputs) {
-            // TODO: what happens when empty
             latestControlInputCopy = this.latestControlInputs.get(missile);
         }
         return latestControlInputCopy;
     }
 
-    // throws StatusRuntimeException
     public void sendMissileState(MissileState missileState) {
-        // TODO:
+        LOGGER.info("{} {} {}", this.missileStateObservers.size(), this.finishLatches.size(), this.latestControlInputs.size());
+        LOGGER.info("sending missile state");
+        try {
+            this.missileStateObservers.get(missileState.getMissile()).onNext(missileState);
+        } catch (RuntimeException e) {
+            this.missileStateObservers.get(missileState.getMissile()).onError(e);
+            LOGGER.error("sendMissileState grpc error: {}", e.getMessage());
+        }
     }
 
     // throws StatusRuntimeException
