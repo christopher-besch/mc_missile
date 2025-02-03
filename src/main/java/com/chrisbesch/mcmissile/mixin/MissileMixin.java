@@ -89,6 +89,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private final double airDensity = 1.225D;
     private final double airDensityVariance = 0.05D;
 
+    private Missile missile;
+
     // this constructor is only needed to make the compiler happy
     public MissileMixin(EntityType<? extends ProjectileEntity> entityType, World world) {
         super(entityType, world);
@@ -145,6 +147,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // don't do negative numbers
         this.missileId = Math.abs(this.random.nextInt());
         LOGGER.info("detected missile {} on socket id {}, missile id {}", this.missileName, this.connectionId, this.missileId);
+
+        // TODO: set budget
+        this.missile = Missile.newBuilder().setName(this.missileName).setMissileId(this.missileId).setConnectionId(this.connectionId).setBudget(0).build();
     }
 
     // throws StatusRuntimeException
@@ -177,9 +182,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             thisObject.setVelocity(Vec3d.ZERO);
             thisObject.velocityDirty = true;
         }
-        // TODO: set correct budget
-        // TODO: use return
-        GuidanceStubManager.getInstance().registerMissile(Missile.newBuilder().setName(this.missileName).setMissileId(this.missileId).setConnectionId(this.connectionId).setBudget(0).build());
+        GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
     // throws StatusRuntimeException
@@ -193,7 +196,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
         // TODO: use return
-        GuidanceStubManager.getInstance().getGuidance(MissileState.newBuilder().setMissileId(this.missileId).setConnectionId(this.connectionId).setPosX(pos.x).setPosY(pos.y).setPosZ(pos.z).setVelX(vel.x).setVelY(vel.y).setVelZ(vel.z).setPitch(pitch).setYaw(yaw).setTargetLock(false).setDestroyed(false).build());
+        GuidanceStubManager.getInstance().getLatestGuidance(this.missile);
     }
 
     // update the position and velocity
@@ -241,6 +244,21 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
     }
 
+    private MissileState constructMissileState() {
+        assert this.isMissile;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        Vec3d pos = thisObject.getPos();
+        Vec3d vel = thisObject.getVelocity();
+        double pitch = thisObject.getPitch();
+        double yaw = thisObject.getYaw();
+        return MissileState.newBuilder().setPosX(pos.x).setPosY(pos.y).setPosZ(pos.z).setVelX(vel.x).setVelY(vel.y).setVelZ(vel.z).setPitch(pitch).setYaw(yaw).setTargetLock(false).setDestroyed(false).setMissile(this.missile).build();
+    }
+
+    private void sendMissileState() {
+        assert this.isMissile;
+        GuidanceStubManager.getInstance().sendMissileState(constructMissileState());
+    }
+
     // this completely replaces the original tick method
     // throws StatusRuntimeException
     private void missileTick() {
@@ -253,8 +271,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         if (this.tickCount == 0) {
             this.launchMissile();
         } else {
-            controlMissile();
             updateMissile();
+            sendMissileState();
+            controlMissile();
         }
         // entity collision check
         // we can always hit, this::canHit would be cleaner though
@@ -289,7 +308,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
         LOGGER.info("discarding missile");
         try {
-            GuidanceStubManager.getInstance().getGuidance(MissileState.newBuilder().setMissileId(this.missileId).setConnectionId(this.connectionId).setDestroyed(true).build());
+            GuidanceStubManager.getInstance().endGuidanceConnection(MissileState.newBuilder().setDestroyed(true).setMissile(this.missile).build());
         } catch (StatusRuntimeException e) {
             LOGGER.error("failed to notify guidance and control server about discarded missile: {}", e.getMessage());
             // don't discardAndNotify here because we're already there

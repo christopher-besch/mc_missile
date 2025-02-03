@@ -13,6 +13,41 @@ message Missile {
     int32 budget = 4;
 }
 
+message MissileState {
+    int32 id = 1;
+    int32 lastControlInputId = 2;
+
+    // may not change during flight
+    Missile missile = 3;
+
+    // only to be considered when not destroyed
+    double posX = 4;
+    double posY = 5;
+    double posZ = 6;
+
+    // only to be considered when not destroyed
+    double velX = 7;
+    double velY = 8;
+    double velZ = 9;
+
+    // only to be considered when not destroyed
+    double pitch = 10;
+    double yaw = 11;
+
+    // only to be considered when not destroyed and targetLock
+    double targetPosX = 12;
+    double targetPosY = 14;
+    double targetPosZ = 15;
+
+    // only to be considered when not destroyed and targetLock
+    double targetVelX = 16;
+    double targetVelY = 17;
+    double targetVelZ = 18;
+
+    bool targetLock = 19;
+    bool destroyed = 20;
+}
+
 message MissileHardwareConfig {
 // airframe
 // - movement stability (noise in rotation)
@@ -52,49 +87,20 @@ message MissileHardwareConfig {
     string playerNameRegex = 2;
 }
 
-message MissileState {
-    int32 missileId = 1;
-    int32 connectionId = 2;
-
-    // only to be considered when not destroyed
-    double posX = 3;
-    double posY = 4;
-    double posZ = 5;
-
-    // only to be considered when not destroyed
-    double velX = 6;
-    double velY = 7;
-    double velZ = 8;
-
-    // only to be considered when not destroyed
-    double pitch = 9;
-    double yaw = 10;
-
-    // only to be considered when not destroyed and targetLock
-    double targetPosX = 11;
-    double targetPosY = 13;
-    double targetPosZ = 14;
-
-    // only to be considered when not destroyed and targetLock
-    double targetVelX = 15;
-    double targetVelY = 16;
-    double targetVelZ = 17;
-
-    bool targetLock = 18;
-    bool destroyed = 19;
-}
-
 message ControlInput {
-    // only to be considered when not explode
-    double pitchTurn = 1;
-    double yawTurn = 2;
+    int32 id = 1;
 
-    bool explode = 3;
-    bool disarm = 4;
+    // only to be sent in first message
+    MissileHardwareConfig hardwareConfig = 2;
+
+    // only to be considered when not explode
+    double pitchTurn = 3;
+    double yawTurn = 4;
+
+    bool explode = 5;
+    bool disarm = 6;
 }
 
 service Guidance {
-    rpc RegisterMissile(Missile) returns (MissileHardwareConfig) {}
-
-    rpc GetGuidance(MissileState) returns (ControlInput) {}
+    rpc GetGuidance(stream MissileState) returns (stream ControlInput) {}
 }

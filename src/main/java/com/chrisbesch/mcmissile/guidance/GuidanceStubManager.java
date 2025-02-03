@@ -1,6 +1,6 @@
 package com.chrisbesch.mcmissile.guidance;
 
-import com.chrisbesch.mcmissile.guidance.GuidanceGrpc.GuidanceBlockingStub;
+import com.chrisbesch.mcmissile.guidance.GuidanceGrpc.GuidanceStub;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +37,9 @@ public /* singleton */ class GuidanceStubManager {
     private static GuidanceStubManager instance = null;
 
     // one stub for each guidance control server connection
-    private Map<Integer, GuidanceBlockingStub> blockingStubs = new HashMap<Integer, GuidanceBlockingStub>();
+    private Map<Integer, GuidanceStub> stubs = new HashMap<Integer, GuidanceStub>();
+
+    private Map<Missile, ControlInput> latestControlInputs = new HashMap<Missile, ControlInput>();
 
     private GuidanceStubManager() {}
 
@@ -48,24 +50,38 @@ public /* singleton */ class GuidanceStubManager {
         return instance;
     }
 
+    // TODO: does it?
     // throws StatusRuntimeException
-    public MissileHardwareConfig registerMissile(Missile missile) {
-        GuidanceBlockingStub blockingStub = getBlockingStub(missile.getConnectionId());
-        return blockingStub.withDeadlineAfter(REGISTER_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).registerMissile(missile);
+    public void establishGuidanceConnection(MissileState missileState) {
+        // TODO:
+        this.sendMissileState(missileState);
+    }
+
+    public void endGuidanceConnection(MissileState missileState) {
+        this.sendMissileState(missileState);
+        // TODO:
+    }
+
+    public ControlInput getLatestGuidance(Missile missile) {
+        ControlInput latestControlInputCopy = null;
+        synchronized (this.latestControlInputs) {
+            // TODO: what happens when empty
+            latestControlInputCopy = this.latestControlInputs.get(missile);
+        }
+        return latestControlInputCopy;
     }
 
     // throws StatusRuntimeException
-    public ControlInput getGuidance(MissileState missileState) {
-        GuidanceBlockingStub blockingStub = getBlockingStub(missileState.getConnectionId());
-        return blockingStub.withDeadlineAfter(GUIDANCE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).getGuidance(missileState);
+    public void sendMissileState(MissileState missileState) {
+        // TODO:
     }
 
     // throws StatusRuntimeException
-    private GuidanceBlockingStub getBlockingStub(int connectionId) {
-        LOGGER.info("{}", this.blockingStubs);
-        if (this.blockingStubs.get(connectionId) != null) {
+    private GuidanceStub getStub(int connectionId) {
+        LOGGER.info("{}", this.stubs);
+        if (this.stubs.get(connectionId) != null) {
             LOGGER.info("reusing stub");
-            return this.blockingStubs.get(connectionId);
+            return this.stubs.get(connectionId);
         }
         LOGGER.info("creating new stub");
         ManagedChannel channel = Grpc.newChannelBuilder(getServerAddress(connectionId), InsecureChannelCredentials.create())
@@ -74,10 +90,10 @@ public /* singleton */ class GuidanceStubManager {
             .idleTimeout(1, TimeUnit.MINUTES)
             .build();
         // TODO: catch exception
-        GuidanceBlockingStub blockingStub = GuidanceGrpc.newBlockingStub(channel);
-        this.blockingStubs.put(connectionId, blockingStub);
-        LOGGER.info("{}", this.blockingStubs);
-        return blockingStub;
+        GuidanceStub stub = GuidanceGrpc.newStub(channel);
+        this.stubs.put(connectionId, stub);
+        LOGGER.info("{}", this.stubs);
+        return stub;
     }
 
     private static String getServerAddress(int connectionId) {
