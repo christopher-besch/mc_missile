@@ -196,7 +196,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
         // TODO: use return
-        GuidanceStubManager.getInstance().getLatestGuidance(this.missile);
+        GuidanceStubManager.getInstance().consumeLatestControlInput(this.missile);
     }
 
     // update the position and velocity
@@ -268,12 +268,21 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         super.tick();
         LOGGER.info("missile tick {}", this.tickCount);
 
+        // <- missile tick begins
+        //  <- client applies control input
+        //   <- client applies missile dynamics
+        //    <- client sends state
+        //         <- server sends control
+        //             <- missile tick begins
+        //              <- client applies control input
+        //               <- client applies missile dynamics
+        //                <- client sends state
         if (this.tickCount == 0) {
             this.launchMissile();
         } else {
+            controlMissile();
             updateMissile();
             sendMissileState();
-            controlMissile();
         }
         // entity collision check
         // we can always hit, this::canHit would be cleaner though
