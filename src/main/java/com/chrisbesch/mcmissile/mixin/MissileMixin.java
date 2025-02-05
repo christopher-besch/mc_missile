@@ -12,16 +12,17 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
-import net.minecraft.entity.passive.AxolotlEntity;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.TypeFilter;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec2f;
@@ -43,10 +44,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
+    private TypeFilter<Entity, ?> entityFilter;
+
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -202,21 +204,19 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             }
             applyControlInput(controlInput);
         }
-        detectEntities(thisObject, 5, 6, 15, AxolotlEntity.class);
+        detectEntities(thisObject, 5, 6, 15);
     }
 
     private <T extends Entity> void detectEntities(
-            FireworkRocketEntity thisObject,
-            int cone_size,
-            int size_increase,
-            int range,
-            Class<T> clazz) {
+            FireworkRocketEntity thisObject, int cone_size, int size_increase, int range) {
         World world = thisObject.getWorld();
         if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
+            this.entityFilter =
+                    (TypeFilter<Entity, ?>) Registries.ENTITY_TYPE.get(Identifier.of("pig"));
             Vec3d heading =
                     thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
             Vec3d pos = thisObject.getPos();
-            Set<LivingEntity> targets = new HashSet<LivingEntity>();
+            Set<Entity> targets = new HashSet<Entity>();
             for (int i = 0; i <= range; i++) {
                 Box area =
                         getBoxAt(
@@ -226,37 +226,32 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                                 cone_size,
                                 cone_size);
                 cone_size += size_increase;
+                // Registries.ENTITY_TYPE.get();
+                // AxolotlEntity axo;
                 targets.addAll(
-                        serverWorld.getEntitiesByClass(AxolotlEntity.class, area, entityx -> true));
+                        serverWorld.getEntitiesByType(
+                                this.entityFilter, area, entityx -> this.canSee((Entity) entityx)));
             }
-            List<LivingEntity> filter_targets =
-                    targets.stream()
-                            .filter(w -> this.canSee((Entity) w))
-                            .collect(Collectors.toList());
-            LOGGER.info("FOUND TARGETS {}", filter_targets.size());
-            for (LivingEntity entity : filter_targets) {
-                // entity.setGlowing(true);
-            }
-            LivingEntity target = minAngleTarget(filter_targets);
+            Entity target = minAngleTarget(targets);
             if (target != null) {
                 target.setGlowing(true);
             }
         }
     }
 
-    private LivingEntity minAngleTarget(List<LivingEntity> targets) {
+    private Entity minAngleTarget(Set<Entity> targets) {
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         Vec3d vec3d =
                 thisObject
                         .getRotationVector(-thisObject.getPitch(), -thisObject.getYaw())
                         .normalize();
-        LivingEntity minTarget = null;
+        Entity minTarget = null;
         double angle = 0.0;
-        for (LivingEntity entity : targets) {
+        for (Entity entity : targets) {
             Vec3d vec3d2 =
                     new Vec3d(
                             this.getX() - entity.getX(),
-                            this.getY() - entity.getEyeY(),
+                            this.getY() - entity.getY(),
                             this.getZ() - entity.getZ());
             vec3d2 = vec3d2.normalize();
             double g = vec3d.dotProduct(vec3d2);
