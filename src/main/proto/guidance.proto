@@ -56,6 +56,8 @@ message MissileHardwareConfig {
 // - burn duration, burn profile
 // - burn noise
 // - multi-stage
+// battery
+// - time to live
 // warHeads
 // - sniper arrow without explosion
 // - tnt (different strengths)
