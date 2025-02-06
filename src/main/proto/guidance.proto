@@ -20,32 +20,34 @@ message MissileState {
     // may not change during flight
     Missile missile = 3;
 
-    // only to be considered when not destroyed
-    double posX = 4;
-    double posY = 5;
-    double posZ = 6;
+    int32 time = 4;
 
     // only to be considered when not destroyed
-    double velX = 7;
-    double velY = 8;
-    double velZ = 9;
+    double posX = 5;
+    double posY = 6;
+    double posZ = 7;
 
     // only to be considered when not destroyed
-    double pitch = 10;
-    double yaw = 11;
+    double velX = 8;
+    double velY = 9;
+    double velZ = 10;
+
+    // only to be considered when not destroyed
+    double pitch = 11;
+    double yaw = 12;
 
     // only to be considered when not destroyed and targetLock
-    double targetPosX = 12;
-    double targetPosY = 14;
-    double targetPosZ = 15;
+    double targetPosX = 13;
+    double targetPosY = 15;
+    double targetPosZ = 16;
 
     // only to be considered when not destroyed and targetLock
-    double targetVelX = 16;
-    double targetVelY = 17;
-    double targetVelZ = 18;
+    double targetVelX = 17;
+    double targetVelY = 18;
+    double targetVelZ = 19;
 
-    bool targetLock = 19;
-    bool destroyed = 20;
+    bool targetLock = 20;
+    bool destroyed = 21;
 }
 
 message MissileHardwareConfig {

@@ -4,8 +4,6 @@ import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
 import com.chrisbesch.mcmissile.guidance.MissileState;
 
-import io.grpc.StatusRuntimeException;
-
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
@@ -44,22 +42,21 @@ import java.util.regex.Pattern;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
-    private static final Pattern namePattern = Pattern.compile("^mc_missile/(\\d\\d)/(.+)$");
-
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    // TODO: maybe make final or only create when needed
+    private static final Pattern MISSILE_NAME_PATTERN =
+            Pattern.compile("^mc_missile/(\\d\\d)/(.+)$");
+
     private final Random random = Random.create();
 
     private int tickCount = 0;
-    private int missileSelfDestructCount = 200;
-    // set to true when this is detected
-    private boolean isMissile = false;
 
-    private String missileName;
-    private int connectionId;
-    private int missileId;
+    // set iff this is a missile
+    private Missile missile = null;
+
+    // flight parameters //
+    private int missileSelfDestructCount = 200;
 
     // simulation parameters
     // the position is stored in the entity superclass
@@ -80,8 +77,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private final double airDensity = 1.225D;
     private final double airDensityVariance = 0.05D;
 
-    private Missile missile;
-
     // this constructor is only needed to make the compiler happy
     public MissileMixin(EntityType<? extends ProjectileEntity> entityType, World world) {
         super(entityType, world);
@@ -93,14 +88,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // shotatangle when shot by crossbow or dispenser
         if (!thisObject.wasShotAtAngle()) {
             LOGGER.info("rocket wasn't fired at angle");
-            this.isMissile = false;
             return;
         }
 
         List<FireworkExplosionComponent> explosions = thisObject.getExplosions();
         if (explosions.size() == 0) {
             LOGGER.info("rocket doesn't have explosives");
-            this.isMissile = false;
             return;
         }
         // TODO: figuring out if the rocket has big balls isn't working
@@ -111,51 +104,42 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Text customName = thisObject.getStack().get(DataComponentTypes.CUSTOM_NAME);
         if (customName == null) {
             LOGGER.info("rocket doesn't have a custom name");
-            this.isMissile = false;
             return;
         }
 
-        Matcher matcher = namePattern.matcher(customName.getString());
+        Matcher matcher = MISSILE_NAME_PATTERN.matcher(customName.getString());
         if (!matcher.matches()) {
             LOGGER.info("rocket's name doesn't match missile requirement");
-            this.isMissile = false;
             return;
         }
 
-        // TODO: check type of rocket
         // now we know this is a missile
-        this.isMissile = true;
+        var missileBuilder =
+                Missile.newBuilder()
+                        .setName(matcher.group(2))
+                        // don't do negative numbers
+                        .setId(Math.abs(this.random.nextInt()))
+                        // TODO: set proper budget
+                        .setBudget(0);
 
         try {
-            this.connectionId = Integer.parseInt(matcher.group(1));
+            missileBuilder.setConnectionId(Integer.parseInt(matcher.group(1)));
         } catch (NumberFormatException e) {
             // this should never happen
             LOGGER.error("failed to convert connectionId in '{}'", customName.getString());
-            this.isMissile = false;
             return;
         }
-        this.missileName = matcher.group(2);
-        // don't do negative numbers
-        this.missileId = Math.abs(this.random.nextInt());
-        LOGGER.info(
-                "detected missile {} on socket id {}, missile id {}",
-                this.missileName,
-                this.connectionId,
-                this.missileId);
 
-        // TODO: set budget
-        this.missile =
-                Missile.newBuilder()
-                        .setName(this.missileName)
-                        .setId(this.missileId)
-                        .setConnectionId(this.connectionId)
-                        .setBudget(0)
-                        .build();
+        this.missile = missileBuilder.build();
+        LOGGER.info(
+                "detected missile {} on connection id {}, missile id {}",
+                this.missile.getName(),
+                this.missile.getConnectionId(),
+                this.missile.getId());
     }
 
-    // throws StatusRuntimeException
     private void launchMissile() {
-        assert this.isMissile;
+        assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         LOGGER.info("missile launch");
@@ -195,9 +179,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
-    // throws StatusRuntimeException
     private void controlMissile() {
-        assert this.isMissile;
+        assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         // TODO: add noise
@@ -211,7 +194,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     // update the position and velocity
     private void updateMissile() {
-        assert this.isMissile;
+        assert this.missile != null;
         // TODO: maybe set life to 1 if the client receives that update, too
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
@@ -257,13 +240,14 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     }
 
     private MissileState constructMissileState() {
-        assert this.isMissile;
+        assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         Vec3d pos = thisObject.getPos();
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
         return MissileState.newBuilder()
+                .setTime(this.tickCount)
                 .setPosX(pos.x)
                 .setPosY(pos.y)
                 .setPosZ(pos.z)
@@ -279,14 +263,13 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     }
 
     private void sendMissileState() {
-        assert this.isMissile;
+        assert this.missile != null;
         GuidanceStubManager.getInstance().sendMissileState(constructMissileState());
     }
 
     // this completely replaces the original tick method
-    // throws StatusRuntimeException
     private void missileTick() {
-        assert this.isMissile;
+        assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         super.tick();
@@ -341,22 +324,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     }
 
     private void discardAndNotify() {
-        assert this.isMissile;
+        assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         LOGGER.info("discarding missile");
-        try {
-            GuidanceStubManager.getInstance()
-                    .endGuidanceConnection(
-                            MissileState.newBuilder()
-                                    .setDestroyed(true)
-                                    .setMissile(this.missile)
-                                    .build());
-        } catch (StatusRuntimeException e) {
-            LOGGER.error(
-                    "failed to notify guidance and control server about discarded missile: {}",
-                    e.getMessage());
-            // don't discardAndNotify here because we're already there
-        }
+        GuidanceStubManager.getInstance()
+                .endGuidanceConnection(
+                        MissileState.newBuilder()
+                                .setDestroyed(true)
+                                .setMissile(this.missile)
+                                .build());
         thisObject.discard();
     }
 
@@ -367,13 +343,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
 
         // overwrite original tick method
-        if (this.isMissile) {
-            try {
-                this.missileTick();
-            } catch (StatusRuntimeException e) {
-                LOGGER.error("connection to guidance control server failed: {}", e.getMessage());
-                this.discardAndNotify();
-            }
+        if (this.missile != null) {
+            this.missileTick();
             info.cancel();
         } else {
             ++tickCount;
@@ -411,7 +382,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             cancellable = true)
     private void explodeAndRemoveInject(ServerWorld world, CallbackInfo info) {
         // TODO: check different types
-        if (this.isMissile) {
+        if (this.missile != null) {
             LOGGER.info("missile explode");
             FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
             world.createExplosion(

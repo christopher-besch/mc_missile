@@ -144,6 +144,7 @@ public /* singleton */ class GuidanceStubManager {
                 });
     }
 
+    // return null when the server didn't send anything
     public ControlInput consumeLatestControlInput(Missile missile) {
         var consumingControlInput = this.latestControlInputs.get(missile);
         var consumingControlInputId =
