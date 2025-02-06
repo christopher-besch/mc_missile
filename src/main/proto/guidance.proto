@@ -51,44 +51,70 @@ message MissileState {
 }
 
 message MissileHardwareConfig {
-// airframe
-// - movement stability (noise in rotation)
-// - rotation control speed
-// motor
-// - burn duration, burn profile
-// - burn noise
-// - multi-stage
-// battery
-// - time to live
-// warHeads
-// - sniper arrow without explosion
-// - tnt (different strengths)
-// - effect (different types)
-// - inert
-// - anti-elytra (or anti-air, with anti-rocket)
-// - block-piercing
-// sensors
-// - lock types
-//     - lock-on at launch
-//     - lock-on after launch
-// - seeker types
-//     - specific entity type
-//     - any entity
-//     - specific block
-//     - block straight infront of missile at launch
-// - limitations
-//     - through blocks
-//     - blocked by blocks
-// - range
-// - angle
-// - accuracy
-// target requirements
-// - entity type
-// - player name
-// - block type
+    // - sniper arrow without explosion
+    // - tnt (different strengths)
+    // - effect (different types)
+    // - inert
+    // - anti-elytra (or anti-air, with anti-rocket)
+    // - block-piercing
+    enum WarHead {
+        BLANK = 0;
+        TNT_M = 1;
+    }
+    WarHead warhead = 1;
+
+    // - movement stability (noise in rotation)
+    // - rotation control speed
+    enum Airframe {
+        DEFAULT_AIRFRAME = 0;
+    }
+    Airframe airframe = 2;
+
+    // - burn duration, burn profile
+    // - burn noise
+    // - multi-stage
+    enum Motor {
+        SINGLE_STAGE_M = 0;
+    }
+    Motor motor = 3;
+
+    // - time to live
+    enum Battery {
+        LI_ION_M = 0;
+    }
+    Battery battery = 4;
+
+    // - lock types
+    //     - lock-on at launch
+    //     - lock-on after launch
+    // - seeker types
+    //     - specific entity type
+    //     - any entity
+    //     - specific block
+    //     - block straight infront of missile at launch
+    // - limitations
+    //     - through blocks
+    //     - blocked by blocks
+    // - range
+    // - angle
+    // - accuracy
+    // target requirements
+    // - entity type
+    // - player name
+    // - block type
+    enum Seeker {
+        NO_SEEKER = 0;
+    }
+    Seeker seeker = 5;
+
+    // position/velocity accuracy
+    enum InertialSystem {
+        DEFAULT_IMU = 0;
+    }
+    InertialSystem inertialSystem = 6;
     
-    string targetEntityRegex = 1;
-    string playerNameRegex = 2;
+    string targetEntityRegex = 7;
+    string playerNameRegex = 8;
 }
 
 message ControlInput {

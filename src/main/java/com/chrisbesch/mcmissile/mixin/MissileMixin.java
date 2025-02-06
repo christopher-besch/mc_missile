@@ -3,6 +3,7 @@ package com.chrisbesch.mcmissile.mixin;
 import com.chrisbesch.mcmissile.guidance.ControlInput;
 import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
+import com.chrisbesch.mcmissile.guidance.MissileHardwareConfig;
 import com.chrisbesch.mcmissile.guidance.MissileState;
 
 import net.minecraft.component.DataComponentTypes;
@@ -55,6 +56,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private Missile missile = null;
 
     // flight parameters //
+    // TODO: implement proper parameters
     private int missileSelfDestructCount = 200;
 
     // simulation parameters
@@ -174,15 +176,43 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
-    private void controlMissile() {
+    private void readControlInput() {
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         var controlInput =
                 GuidanceStubManager.getInstance().consumeLatestControlInput(this.missile);
         if (controlInput != null) {
+            // Only load the config directly after launch.
+            // When there is no config given, use the default.
+            if (this.tickCount == 1 && controlInput.getHardwareConfig() != null) {
+                loadHardwareConfig(controlInput.getHardwareConfig());
+            }
             applyControlInput(controlInput);
         }
+    }
+
+    private void loadHardwareConfig(MissileHardwareConfig hardwareConfig) {
+        assert this.missile != null;
+        assert hardwareConfig != null;
+        int cost = calculateCost(hardwareConfig);
+        if (cost > this.missile.getBudget()) {
+            LOGGER.warn(
+                    "{}: missile is too expensive {}, budget only {}",
+                    this.missile.getId(),
+                    cost,
+                    this.missile.getBudget());
+            return;
+        }
+        // TODO: implement
+        LOGGER.info("{}: loaded missile hardware config", this.missile.getId());
+    }
+
+    private int calculateCost(MissileHardwareConfig hardwareConfig) {
+        assert this.missile != null;
+        assert hardwareConfig != null;
+        // TODO: implement
+        return 0;
     }
 
     private void applyControlInput(ControlInput controlInput) {
@@ -286,7 +316,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         if (this.tickCount == 0) {
             this.launchMissile();
         } else {
-            controlMissile();
+            readControlInput();
             applyFlightDynamics();
             sendMissileState();
         }
