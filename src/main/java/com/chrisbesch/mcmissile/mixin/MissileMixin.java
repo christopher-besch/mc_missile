@@ -147,7 +147,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         this.missile =
                 Missile.newBuilder()
                         .setName(this.missileName)
-                        .setMissileId(this.missileId)
+                        .setId(this.missileId)
                         .setConnectionId(this.connectionId)
                         .setBudget(0)
                         .build();
