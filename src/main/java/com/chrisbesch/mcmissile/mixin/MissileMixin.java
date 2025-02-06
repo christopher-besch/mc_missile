@@ -1,5 +1,6 @@
 package com.chrisbesch.mcmissile.mixin;
 
+import com.chrisbesch.mcmissile.guidance.ControlInput;
 import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
 import com.chrisbesch.mcmissile.guidance.MissileState;
@@ -19,8 +20,6 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
@@ -143,8 +142,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         LOGGER.info("missile launch");
-        // TODO: this might not be required if this is not needed as we set the rotation below
-        // set the rotation to be parallel with the initial velocity vector
+        // Set the rotation to be parallel with the initial velocity vector.
+        // This is the direction the rocket was shot.
         thisObject.updateRotation();
         if (!thisObject.isSilent()) {
             LOGGER.info("sound");
@@ -161,17 +160,13 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                             1.0F);
         }
 
-        // add movement of crossbow owner
+        // Add movement of the crossbow owner.
+        // This doesn't change the orientation of the rocket.
         Entity owner = thisObject.getOwner();
         if (owner != null) {
             LOGGER.info("applying owner velocity {}", owner.getVelocity());
             thisObject.setVelocity(getVelocity());
             thisObject.velocityDirty = true;
-            // TODO: maybe add this back
-            // thisObject.setVelocity(thisObject.getVelocity().add(owner.getVelocity()));
-            // thisObject.velocityDirty = true;
-            // TODO: figure out if this is needed
-            // thisObject.move(MovementType.SELF, thisObject.getVelocity());
         } else {
             thisObject.setVelocity(Vec3d.ZERO);
             thisObject.velocityDirty = true;
@@ -183,19 +178,22 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
-        // TODO: add noise
-        Vec3d pos = thisObject.getPos();
-        Vec3d vel = thisObject.getVelocity();
-        double pitch = thisObject.getPitch();
-        double yaw = thisObject.getYaw();
-        // TODO: use return
-        GuidanceStubManager.getInstance().consumeLatestControlInput(this.missile);
+        var controlInput =
+                GuidanceStubManager.getInstance().consumeLatestControlInput(this.missile);
+        if (controlInput != null) {
+            applyControlInput(controlInput);
+        }
     }
 
-    // update the position and velocity
-    private void updateMissile() {
+    private void applyControlInput(ControlInput controlInput) {
         assert this.missile != null;
-        // TODO: maybe set life to 1 if the client receives that update, too
+        assert controlInput != null;
+        // TODO: implement
+    }
+
+    // Update velocity and position of the missile.
+    private void applyFlightDynamics() {
+        assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         double oldPropellant = this.propellant;
@@ -242,6 +240,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private MissileState constructMissileState() {
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+
         Vec3d pos = thisObject.getPos();
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
@@ -267,7 +266,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         GuidanceStubManager.getInstance().sendMissileState(constructMissileState());
     }
 
-    // this completely replaces the original tick method
+    // This completely replaces the original Minecraft tick method.
     private void missileTick() {
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
@@ -288,28 +287,26 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             this.launchMissile();
         } else {
             controlMissile();
-            updateMissile();
+            applyFlightDynamics();
             sendMissileState();
         }
-        // entity collision check
-        // we can always hit, this::canHit would be cleaner though
-        // do this after the update to ensure we don't hit ourselfs at launch
+        // entity collision check //
+        // We can always hit, this::canHit would be cleaner though.
+        // Do this after the update to ensure we don't hit ourself at launch.
         // TODO: hits with other rockets from same launcher create problems
         HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
-        // TODO: fix comment
-        // in the original code this is run after the movement is applied so do it like this here,
-        // too
+        // In the original code this is run after the movement is applied so do it like this here,
+        // too.
         // TODO: block collision doesn't sometimes work when shot straight down
         // block collision check
         // this only does something when the rocket has explosion effects
         thisObject.tickBlockCollision();
 
-        LOGGER.info("{}", hitResult.getType());
         if (!thisObject.noClip
                 && thisObject.isAlive()
                 && hitResult.getType() != HitResult.Type.MISS) {
-            LOGGER.info("hit");
             thisObject.hitOrDeflect(hitResult);
+            // TODO: why is this needed?
             thisObject.velocityDirty = true;
         }
 
@@ -351,37 +348,13 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    @Inject(
-            at = @At("HEAD"),
-            method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V",
-            cancellable = true)
-    private void onEntityHitInject(EntityHitResult entityHitResult, CallbackInfo info) {
-        LOGGER.info("missile entity hit");
-    }
-
-    @Inject(
-            at = @At("HEAD"),
-            method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V",
-            cancellable = true)
-    private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
-        LOGGER.info("missile block hit");
-    }
-
-    // this doesn't work
-    // @Inject(at = @At("HEAD"), method =
-    // "hitOrDeflect(Lnet/minecraft/util/hit/HitResult;)Lnet/minecraft/entity/ProjectileDeflection;",
-    // cancellable = true)
-    // private void hitOrDeflectInject(HitResult hitResult, CallbackInfo info) {
-    //     LOGGER.info("missile hitOrDeflect hit");
-    // }
-
     // overwrites both explodeAndRemove and explode for missiles
     @Inject(
             at = @At("HEAD"),
             method = "explodeAndRemove(Lnet/minecraft/server/world/ServerWorld;)V",
             cancellable = true)
     private void explodeAndRemoveInject(ServerWorld world, CallbackInfo info) {
-        // TODO: check different types
+        // TODO: check warhead config
         if (this.missile != null) {
             LOGGER.info("missile explode");
             FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
@@ -396,16 +369,4 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             info.cancel();
         }
     }
-
-    // @Override
-    // public void initDataTracker(DataTracker.Builder builder) {
-    //     FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
-    //     thisObject.initDataTracker(builder);
-    // }
-
-    // @Override
-    // public ItemStack getStack() {
-    //     FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
-    //     return thisObject.getStack();
-    // }
 }

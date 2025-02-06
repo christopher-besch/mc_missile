@@ -28,6 +28,7 @@ public /* singleton */ class GuidanceStubManager {
     // Set this to something that isn't a prefix of any other address on your network.
     static final String GUIDANCE_CONTROL_ADDRESS_PREFIX = "MinecraftGuidanceControl";
     // set this to true to test with a localhost guidance and control server
+    // TODO: make this a config parameter
     static final boolean LOCALHOST_GUIDANCE_CONTROL = true;
     static final int PORT = 42069;
 
