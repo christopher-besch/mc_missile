@@ -2,20 +2,19 @@ package com.chrisbesch.mcmissile.guidance;
 
 import com.chrisbesch.mcmissile.guidance.GuidanceGrpc.GuidanceStub;
 
+import io.grpc.Grpc;
+import io.grpc.InsecureChannelCredentials;
+import io.grpc.ManagedChannel;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
-
-import java.util.concurrent.TimeUnit;
-
-import io.grpc.InsecureChannelCredentials;
-import io.grpc.ManagedChannel;
-import io.grpc.Grpc;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 // This singleton handles connections to the guidance and control server.
 // These will be reused.
@@ -38,10 +37,14 @@ public /* singleton */ class GuidanceStubManager {
     // one stub for each guidance control server connection
     private Map<Integer, GuidanceStub> stubs = new ConcurrentHashMap<Integer, GuidanceStub>();
 
-    private Map<Missile, ControlInput> latestControlInputs = new ConcurrentHashMap<Missile, ControlInput>();
-    private Map<Missile, CountDownLatch> finishLatches = new ConcurrentHashMap<Missile, CountDownLatch>();
-    private Map<Missile, StreamObserver<MissileState>> missileStateObservers = new ConcurrentHashMap<Missile, StreamObserver<MissileState>>();
-    private Map<Missile, Integer> latestConsumedControlInputIds = new ConcurrentHashMap<Missile, Integer>();
+    private Map<Missile, ControlInput> latestControlInputs =
+            new ConcurrentHashMap<Missile, ControlInput>();
+    private Map<Missile, CountDownLatch> finishLatches =
+            new ConcurrentHashMap<Missile, CountDownLatch>();
+    private Map<Missile, StreamObserver<MissileState>> missileStateObservers =
+            new ConcurrentHashMap<Missile, StreamObserver<MissileState>>();
+    private Map<Missile, Integer> latestConsumedControlInputIds =
+            new ConcurrentHashMap<Missile, Integer>();
 
     private GuidanceStubManager() {}
 
@@ -56,26 +59,38 @@ public /* singleton */ class GuidanceStubManager {
         GuidanceStub stub = getStub(initialMissileState.getMissile().getConnectionId());
         this.finishLatches.put(initialMissileState.getMissile(), new CountDownLatch(1));
 
-        StreamObserver<ControlInput> controlInputObserver = new StreamObserver<ControlInput>() {
-            @Override
-            public void onNext(ControlInput controlInput) {
-                LOGGER.info("received control input id: {}", controlInput.getId());
-                GuidanceStubManager.getInstance().latestControlInputs.put(initialMissileState.getMissile(), controlInput);
-            }
+        StreamObserver<ControlInput> controlInputObserver =
+                new StreamObserver<ControlInput>() {
+                    @Override
+                    public void onNext(ControlInput controlInput) {
+                        LOGGER.info("received control input id: {}", controlInput.getId());
+                        GuidanceStubManager.getInstance()
+                                .latestControlInputs
+                                .put(initialMissileState.getMissile(), controlInput);
+                    }
 
-            @Override
-            public void onError(Throwable t) {
-                LOGGER.error("grpc error: {}", Status.fromThrowable(t));
-                GuidanceStubManager.getInstance().finishLatches.get(initialMissileState.getMissile()).countDown();
-            }
+                    @Override
+                    public void onError(Throwable t) {
+                        LOGGER.error("grpc error: {}", Status.fromThrowable(t));
+                        GuidanceStubManager.getInstance()
+                                .finishLatches
+                                .get(initialMissileState.getMissile())
+                                .countDown();
+                    }
 
-            @Override
-            public void onCompleted() {
-                LOGGER.info("completed grpc connection with {}", initialMissileState.getMissile());
-                GuidanceStubManager.getInstance().finishLatches.get(initialMissileState.getMissile()).countDown();
-            }
-        };
-        this.missileStateObservers.put(initialMissileState.getMissile(), stub.getGuidance(controlInputObserver));
+                    @Override
+                    public void onCompleted() {
+                        LOGGER.info(
+                                "completed grpc connection with {}",
+                                initialMissileState.getMissile());
+                        GuidanceStubManager.getInstance()
+                                .finishLatches
+                                .get(initialMissileState.getMissile())
+                                .countDown();
+                    }
+                };
+        this.missileStateObservers.put(
+                initialMissileState.getMissile(), stub.getGuidance(controlInputObserver));
 
         this.sendMissileState(initialMissileState);
     }
@@ -100,20 +115,30 @@ public /* singleton */ class GuidanceStubManager {
     // TODO: maybe rename
     public ControlInput consumeLatestControlInput(Missile missile) {
         var consumingControlInput = this.latestControlInputs.get(missile);
-        var consumingControlInputId = consumingControlInput == null ? -1 : consumingControlInput.getId();
+        var consumingControlInputId =
+                consumingControlInput == null ? -1 : consumingControlInput.getId();
         var latestConsumedControlInputId = this.latestConsumedControlInputIds.get(missile);
         if (latestConsumedControlInputId == null) {
             latestConsumedControlInputId = -1;
         }
         if (consumingControlInputId <= latestConsumedControlInputId) {
-            LOGGER.warn("consuming the same control input again, the guidance control server {} is lagging behind, latest consumed id {}, now consuming id {}", missile.getConnectionId(), latestConsumedControlInputId, consumingControlInputId);
+            LOGGER.warn(
+                    "consuming the same control input again, the guidance control server {} is"
+                        + " lagging behind, latest consumed id {}, now consuming id {}",
+                    missile.getConnectionId(),
+                    latestConsumedControlInputId,
+                    consumingControlInputId);
         }
         this.latestConsumedControlInputIds.put(missile, consumingControlInputId);
         return consumingControlInput;
     }
 
     public void sendMissileState(MissileState missileState) {
-        LOGGER.info("{} {} {}", this.missileStateObservers.size(), this.finishLatches.size(), this.latestControlInputs.size());
+        LOGGER.info(
+                "{} {} {}",
+                this.missileStateObservers.size(),
+                this.finishLatches.size(),
+                this.latestControlInputs.size());
         LOGGER.info("sending missile state");
         try {
             this.missileStateObservers.get(missileState.getMissile()).onNext(missileState);
@@ -131,11 +156,13 @@ public /* singleton */ class GuidanceStubManager {
             return this.stubs.get(connectionId);
         }
         LOGGER.info("creating new stub");
-        ManagedChannel channel = Grpc.newChannelBuilder(getServerAddress(connectionId), InsecureChannelCredentials.create())
-            .keepAliveTime(500, TimeUnit.MILLISECONDS)
-            .keepAliveTimeout(250, TimeUnit.MILLISECONDS)
-            .idleTimeout(1, TimeUnit.MINUTES)
-            .build();
+        ManagedChannel channel =
+                Grpc.newChannelBuilder(
+                                getServerAddress(connectionId), InsecureChannelCredentials.create())
+                        .keepAliveTime(500, TimeUnit.MILLISECONDS)
+                        .keepAliveTimeout(250, TimeUnit.MILLISECONDS)
+                        .idleTimeout(1, TimeUnit.MINUTES)
+                        .build();
         // TODO: catch exception
         GuidanceStub stub = GuidanceGrpc.newStub(channel);
         this.stubs.put(connectionId, stub);

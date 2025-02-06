@@ -2,54 +2,45 @@ package com.chrisbesch.mcmissile.mixin;
 
 import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
-import com.chrisbesch.mcmissile.guidance.MissileHardwareConfig;
 import com.chrisbesch.mcmissile.guidance.MissileState;
-import com.chrisbesch.mcmissile.guidance.ControlInput;
 
+import io.grpc.StatusRuntimeException;
+
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.FlyingItemEntity;
+import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
-import net.minecraft.entity.FlyingItemEntity;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.world.World;
-// import net.minecraft.world.explosion.Explosion;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.random.Random;
 import net.minecraft.entity.projectile.ProjectileUtil;
 // import net.minecraft.entity.data.DataTracker;
 // import net.minecraft.item.ItemStack;
-import net.minecraft.entity.EntityType;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.Text;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.world.World;
+// import net.minecraft.world.explosion.Explosion;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-// import org.spongepowered.asm.mixin.gen.Accessor;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.entity.MovementType;
 
-import net.minecraft.component.type.FireworkExplosionComponent;
-
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.entity.ProjectileDeflection;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.grpc.StatusRuntimeException;
-
-import java.util.regex.Pattern;
-import java.lang.Math;
-import java.util.regex.Matcher;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+// import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
@@ -97,7 +88,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     }
 
     private void identifyMissile() {
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         // shotatangle when shot by crossbow or dispenser
         if (!thisObject.wasShotAtAngle()) {
@@ -113,7 +104,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             return;
         }
         // TODO: figuring out if the rocket has big balls isn't working
-        // var bigBallCount = explosions.stream().filter(e -> e.shape == FireworkExplosionComponent.Type.BIG_BALL).count();
+        // var bigBallCount = explosions.stream().filter(e -> e.shape ==
+        // FireworkExplosionComponent.Type.BIG_BALL).count();
         // LOGGER.info("{}", bigBallCount);
 
         Text customName = thisObject.getStack().get(DataComponentTypes.CUSTOM_NAME);
@@ -135,9 +127,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         this.isMissile = true;
 
         try {
-           this.connectionId = Integer.parseInt(matcher.group(1));
-        }
-        catch (NumberFormatException e) {
+            this.connectionId = Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException e) {
             // this should never happen
             LOGGER.error("failed to convert connectionId in '{}'", customName.getString());
             this.isMissile = false;
@@ -146,16 +137,26 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         this.missileName = matcher.group(2);
         // don't do negative numbers
         this.missileId = Math.abs(this.random.nextInt());
-        LOGGER.info("detected missile {} on socket id {}, missile id {}", this.missileName, this.connectionId, this.missileId);
+        LOGGER.info(
+                "detected missile {} on socket id {}, missile id {}",
+                this.missileName,
+                this.connectionId,
+                this.missileId);
 
         // TODO: set budget
-        this.missile = Missile.newBuilder().setName(this.missileName).setMissileId(this.missileId).setConnectionId(this.connectionId).setBudget(0).build();
+        this.missile =
+                Missile.newBuilder()
+                        .setName(this.missileName)
+                        .setMissileId(this.missileId)
+                        .setConnectionId(this.connectionId)
+                        .setBudget(0)
+                        .build();
     }
 
     // throws StatusRuntimeException
     private void launchMissile() {
         assert this.isMissile;
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         LOGGER.info("missile launch");
         // TODO: this might not be required if this is not needed as we set the rotation below
@@ -163,8 +164,17 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         thisObject.updateRotation();
         if (!thisObject.isSilent()) {
             LOGGER.info("sound");
-            thisObject.getWorld().playSound(null, thisObject.getX(), thisObject.getY(), thisObject.getZ(),
-                    SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.AMBIENT, 20.0F, 1.0F);
+            thisObject
+                    .getWorld()
+                    .playSound(
+                            null,
+                            thisObject.getX(),
+                            thisObject.getY(),
+                            thisObject.getZ(),
+                            SoundEvents.ENTITY_ENDER_DRAGON_SHOOT,
+                            SoundCategory.AMBIENT,
+                            20.0F,
+                            1.0F);
         }
 
         // add movement of crossbow owner
@@ -188,7 +198,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // throws StatusRuntimeException
     private void controlMissile() {
         assert this.isMissile;
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         // TODO: add noise
         Vec3d pos = thisObject.getPos();
@@ -203,10 +213,10 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private void updateMissile() {
         assert this.isMissile;
         // TODO: maybe set life to 1 if the client receives that update, too
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         double oldPropellant = this.propellant;
-        this.propellant = Math.max(0.0D, this.propellant-0.5D);
+        this.propellant = Math.max(0.0D, this.propellant - 0.5D);
         double spentPropellant = oldPropellant - this.propellant;
         LOGGER.info("spentPropellant: {}", spentPropellant);
         LOGGER.info("thrust fac: {}", spentPropellant * this.exhaustVelocity);
@@ -217,16 +227,16 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Vec3d thrust = heading.multiply(spentPropellant * this.exhaustVelocity);
         LOGGER.info("heading: {}", heading);
         // TODO: drag
-        // Vec3d drag = 
+        // Vec3d drag =
         Vec3d acceleration = (thrust.add(this.gravitationalAcceleration));
         LOGGER.info("acceleration: {}", acceleration);
         // TODO: clamp velocity because of Minecraft limitations
         // thisObject.velocityDirty = true;
 
-
         // vel = new Vec3d(1D, 0D, 0D);
         LOGGER.info("vel: {}", thisObject.getVelocity());
-        // thisObject.setPosition(thisObject.getX() + vel.x, thisObject.getY() + vel.y, thisObject.getZ() + vel.z);
+        // thisObject.setPosition(thisObject.getX() + vel.x, thisObject.getY() + vel.y,
+        // thisObject.getZ() + vel.z);
         thisObject.setVelocity(thisObject.getVelocity().add(acceleration));
         thisObject.move(MovementType.SELF, thisObject.getVelocity());
         // set the velocity twice as the velocity might be changed when colliding
@@ -239,19 +249,33 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // double posY = 160.0D;
         // double posZ = 0.0D;
         // float yaw = (float) (MathHelper.atan2(velX, velZ) * 180.0F / (float) Math.PI);
-        // float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) * 180.0F / (float) Math.PI);
+        // float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) *
+        // 180.0F
+        // / (float) Math.PI);
         // // maybe use setPosition instead
         // thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
     }
 
     private MissileState constructMissileState() {
         assert this.isMissile;
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         Vec3d pos = thisObject.getPos();
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
-        return MissileState.newBuilder().setPosX(pos.x).setPosY(pos.y).setPosZ(pos.z).setVelX(vel.x).setVelY(vel.y).setVelZ(vel.z).setPitch(pitch).setYaw(yaw).setTargetLock(false).setDestroyed(false).setMissile(this.missile).build();
+        return MissileState.newBuilder()
+                .setPosX(pos.x)
+                .setPosY(pos.y)
+                .setPosZ(pos.z)
+                .setVelX(vel.x)
+                .setVelY(vel.y)
+                .setVelZ(vel.z)
+                .setPitch(pitch)
+                .setYaw(yaw)
+                .setTargetLock(false)
+                .setDestroyed(false)
+                .setMissile(this.missile)
+                .build();
     }
 
     private void sendMissileState() {
@@ -263,7 +287,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // throws StatusRuntimeException
     private void missileTick() {
         assert this.isMissile;
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         super.tick();
         LOGGER.info("missile tick {}", this.tickCount);
@@ -290,21 +314,25 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // TODO: hits with other rockets from same launcher create problems
         HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
         // TODO: fix comment
-        // in the original code this is run after the movement is applied so do it like this here, too
+        // in the original code this is run after the movement is applied so do it like this here,
+        // too
         // TODO: block collision doesn't sometimes work when shot straight down
         // block collision check
         // this only does something when the rocket has explosion effects
         thisObject.tickBlockCollision();
 
         LOGGER.info("{}", hitResult.getType());
-        if (!thisObject.noClip && thisObject.isAlive() && hitResult.getType() != HitResult.Type.MISS) {
+        if (!thisObject.noClip
+                && thisObject.isAlive()
+                && hitResult.getType() != HitResult.Type.MISS) {
             LOGGER.info("hit");
             thisObject.hitOrDeflect(hitResult);
             thisObject.velocityDirty = true;
         }
 
         // should detonate?
-        if (this.tickCount >= this.missileSelfDestructCount && thisObject.getWorld() instanceof ServerWorld serverWorld) {
+        if (this.tickCount >= this.missileSelfDestructCount
+                && thisObject.getWorld() instanceof ServerWorld serverWorld) {
             thisObject.explodeAndRemove(serverWorld);
         }
 
@@ -314,12 +342,19 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     private void discardAndNotify() {
         assert this.isMissile;
-        FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         LOGGER.info("discarding missile");
         try {
-            GuidanceStubManager.getInstance().endGuidanceConnection(MissileState.newBuilder().setDestroyed(true).setMissile(this.missile).build());
+            GuidanceStubManager.getInstance()
+                    .endGuidanceConnection(
+                            MissileState.newBuilder()
+                                    .setDestroyed(true)
+                                    .setMissile(this.missile)
+                                    .build());
         } catch (StatusRuntimeException e) {
-            LOGGER.error("failed to notify guidance and control server about discarded missile: {}", e.getMessage());
+            LOGGER.error(
+                    "failed to notify guidance and control server about discarded missile: {}",
+                    e.getMessage());
             // don't discardAndNotify here because we're already there
         }
         thisObject.discard();
@@ -345,30 +380,47 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    @Inject(at = @At("HEAD"), method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V", cancellable = true)
+    @Inject(
+            at = @At("HEAD"),
+            method = "onEntityHit(Lnet/minecraft/util/hit/EntityHitResult;)V",
+            cancellable = true)
     private void onEntityHitInject(EntityHitResult entityHitResult, CallbackInfo info) {
         LOGGER.info("missile entity hit");
     }
 
-    @Inject(at = @At("HEAD"), method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V", cancellable = true)
+    @Inject(
+            at = @At("HEAD"),
+            method = "onBlockHit(Lnet/minecraft/util/hit/BlockHitResult;)V",
+            cancellable = true)
     private void onBlockHitInject(BlockHitResult blockHitResult, CallbackInfo info) {
         LOGGER.info("missile block hit");
     }
-    
+
     // this doesn't work
-    // @Inject(at = @At("HEAD"), method = "hitOrDeflect(Lnet/minecraft/util/hit/HitResult;)Lnet/minecraft/entity/ProjectileDeflection;", cancellable = true)
+    // @Inject(at = @At("HEAD"), method =
+    // "hitOrDeflect(Lnet/minecraft/util/hit/HitResult;)Lnet/minecraft/entity/ProjectileDeflection;",
+    // cancellable = true)
     // private void hitOrDeflectInject(HitResult hitResult, CallbackInfo info) {
     //     LOGGER.info("missile hitOrDeflect hit");
     // }
 
     // overwrites both explodeAndRemove and explode for missiles
-    @Inject(at = @At("HEAD"), method = "explodeAndRemove(Lnet/minecraft/server/world/ServerWorld;)V", cancellable = true)
+    @Inject(
+            at = @At("HEAD"),
+            method = "explodeAndRemove(Lnet/minecraft/server/world/ServerWorld;)V",
+            cancellable = true)
     private void explodeAndRemoveInject(ServerWorld world, CallbackInfo info) {
         // TODO: check different types
         if (this.isMissile) {
             LOGGER.info("missile explode");
-            FireworkRocketEntity thisObject = (FireworkRocketEntity)(Object)this;
-            world.createExplosion(thisObject, thisObject.getX(), thisObject.getY(), thisObject.getZ(), 6, World.ExplosionSourceType.TNT);
+            FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+            world.createExplosion(
+                    thisObject,
+                    thisObject.getX(),
+                    thisObject.getY(),
+                    thisObject.getZ(),
+                    6,
+                    World.ExplosionSourceType.TNT);
             this.discardAndNotify();
             info.cancel();
         }
