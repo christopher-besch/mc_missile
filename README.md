@@ -2,3 +2,4 @@
 - `./gradlew validateAccessWidener`
 - `./gradlew runServer`
 - `docker run --net host --rm -ti --name mc_missile_java -v ./:/home/gradle/mc_missile -p 25565:25565 --entrypoint /bin/bash gradle`
+- `find ./src -name '*.java' -type f -print0 | xargs -0 java -jar ~/dwn/google-java-format-1.25.2-all-deps.jar --aosp -r`
