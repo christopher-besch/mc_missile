@@ -11,6 +11,7 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
+import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
@@ -34,7 +35,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
-import java.util.function.ToDoubleFunction;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,7 +57,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private Missile missile;
 
     // flight parameters //
-    private Vec3d gravity = new Vec3d(0.0D, 0.1D, 0.0D);
+    private Vec3d gravity = new Vec3d(0.0D, -0.2D, 0.0D);
 
     private Integer timeToLive;
 
@@ -64,8 +65,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // velocity is stored in ProjectileEntity
     // rotation is stored in ProjectileEntity
     private Double drag;
-    private ToDoubleFunction<Integer> accelerationCurve;
-    // in radians per tick
+    private Function<Integer, Double> accelerationCurve;
+    // in degrees per tick
     // applied to both yaw and pitch input
     private Double maxRotationInput;
 
@@ -171,7 +172,10 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Entity owner = thisObject.getOwner();
         if (owner != null) {
             LOGGER.info("applying owner velocity {}", owner.getVelocity());
-            thisObject.setVelocity(getVelocity());
+            thisObject.setVelocity(owner.getVelocity());
+            // move once so that we don't bump into flying shooter
+            thisObject.move(MovementType.SELF, owner.getVelocity().multiply(2.0D));
+            thisObject.setVelocity(owner.getVelocity());
             thisObject.velocityDirty = true;
         } else {
             thisObject.setVelocity(Vec3d.ZERO);
@@ -232,7 +236,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             case DEFAULT_AIRFRAME:
                 this.drag = 0.05D;
                 this.maxRotationInput = 0.5D;
-                this.rotationVariance = 0.0D;
+                this.rotationVariance = 30.0D;
                 break;
             default:
                 LOGGER.error("{}: unknown airframe", this.missile.getId());
@@ -242,10 +246,10 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             case SINGLE_STAGE_M:
                 this.accelerationCurve =
                         (Integer n) -> {
-                            return n < 50 ? 0.5D : 0.0D;
+                            return n < 15 ? 0.4D : 0.0D;
                         };
 
-                this.accelerationAbsVariance = 0.0D;
+                this.accelerationAbsVariance = 0.01D;
                 break;
             default:
                 LOGGER.error("{}: unknown motor", this.missile.getId());
@@ -299,7 +303,30 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private void applyFlightDynamics() {
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
-        // TODO: implement
+
+        // apply rotation variance
+        thisObject.setPitch(
+                thisObject.getPitch()
+                        + (float) this.random.nextGaussian() * this.rotationVariance.floatValue());
+        thisObject.setYaw(
+                thisObject.getYaw()
+                        + (float) this.random.nextGaussian() * this.rotationVariance.floatValue());
+
+        Vec3d heading = thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
+        Vec3d acc =
+                this.gravity.add(
+                        heading.multiply(
+                                this.accelerationCurve.apply(this.tickCount)
+                                        + this.random.nextGaussian()
+                                                * this.accelerationAbsVariance));
+        Vec3d vel = thisObject.getVelocity().add(acc);
+        Vec3d velWithDrag = vel.multiply(1.0D - this.drag);
+        thisObject.setVelocity(velWithDrag);
+        thisObject.move(MovementType.SELF, velWithDrag);
+        // set the velocity twice as the velocity might be changed when colliding
+        // the original firework rocket code does this, too
+        thisObject.setVelocity(velWithDrag);
+        thisObject.velocityDirty = true;
     }
 
     private MissileState constructMissileState() {
