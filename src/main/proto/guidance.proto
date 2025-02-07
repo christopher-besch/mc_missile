@@ -57,11 +57,11 @@ message MissileHardwareConfig {
     // - inert
     // - anti-elytra (or anti-air, with anti-rocket)
     // - block-piercing
-    enum WarHead {
+    enum Warhead {
         BLANK = 0;
         TNT_M = 1;
     }
-    WarHead warhead = 1;
+    Warhead warhead = 1;
 
     // - movement stability (noise in rotation)
     // - rotation control speed

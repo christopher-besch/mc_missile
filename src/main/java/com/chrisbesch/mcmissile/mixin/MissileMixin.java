@@ -11,7 +11,6 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
-import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
@@ -35,6 +34,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
+import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,30 +53,33 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private int tickCount = 0;
 
     // set iff this is a missile
-    private Missile missile = null;
+    private Missile missile;
 
     // flight parameters //
-    // TODO: implement proper parameters
-    private int missileSelfDestructCount = 200;
+    private Vec3d gravity = new Vec3d(0.0D, 0.1D, 0.0D);
 
-    // simulation parameters
-    // the position is stored in the entity superclass
-    private double dryMass = 30.0D;
-    private double propellant = 5.0D;
-    // this is a tiny rocket motor suitable for the Minecraft scale
-    private final double exhaustVelocity = 1.0D;
-    private final double exhaustVelocityVariance = 10.0D;
-    // assuming Earth
-    // divide by tick rate of 20
-    // TODO: get actual tick rate
-    // TODO: do something good here
-    // private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -9.81D/20.0D, 0.0D);
-    private final Vec3d gravitationalAcceleration = new Vec3d(0.0D, -0.1D, 0.0D);
-    private final double dragCoefficient = 0.2D;
-    private final double dragCoefficientVariance = 0.001D;
-    // assuming sea-level
-    private final double airDensity = 1.225D;
-    private final double airDensityVariance = 0.05D;
+    private Integer timeToLive;
+
+    // position is stored in ProjectileEntity
+    // velocity is stored in ProjectileEntity
+    // rotation is stored in ProjectileEntity
+    private Double drag;
+    private ToDoubleFunction<Integer> accelerationCurve;
+    // in radians per tick
+    // applied to both yaw and pitch input
+    private Double maxRotationInput;
+
+    private Double accelerationAbsVariance;
+    private Double rotationVariance;
+
+    private Double posVariance;
+    private Double velVariance;
+    private Double headingVariance;
+
+    private Double seekerHeadTargetPosVariance;
+    private Double seekerHeadTargetVelVariance;
+
+    private MissileHardwareConfig.Warhead warhead;
 
     // this constructor is only needed to make the compiler happy
     public MissileMixin(EntityType<? extends ProjectileEntity> entityType, World world) {
@@ -132,6 +135,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
 
         this.missile = missileBuilder.build();
+        loadDefaultHardwareConfig();
         LOGGER.info(
                 "detected missile {} on connection id {}, missile id {}",
                 this.missile.getName(),
@@ -186,25 +190,95 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // Only load the config directly after launch.
             // When there is no config given, use the default.
             if (this.tickCount == 1 && controlInput.getHardwareConfig() != null) {
-                loadHardwareConfig(controlInput.getHardwareConfig());
+                loadHardwareConfig(controlInput.getHardwareConfig(), false);
             }
             applyControlInput(controlInput);
         }
     }
 
-    private void loadHardwareConfig(MissileHardwareConfig hardwareConfig) {
+    private void loadDefaultHardwareConfig() {
+        assert this.missile != null;
+        // it shall not be possible to construct a missile with a budged below the cost of the
+        // default hardware
+        loadHardwareConfig(
+                MissileHardwareConfig.newBuilder()
+                        .setWarhead(MissileHardwareConfig.Warhead.TNT_M)
+                        .setAirframe(MissileHardwareConfig.Airframe.DEFAULT_AIRFRAME)
+                        .setMotor(MissileHardwareConfig.Motor.SINGLE_STAGE_M)
+                        .setBattery(MissileHardwareConfig.Battery.LI_ION_M)
+                        .setSeeker(MissileHardwareConfig.Seeker.NO_SEEKER)
+                        .setInertialSystem(MissileHardwareConfig.InertialSystem.DEFAULT_IMU)
+                        .build(),
+                false);
+    }
+
+    private void loadHardwareConfig(MissileHardwareConfig hardwareConfig, boolean ignoreBudget) {
         assert this.missile != null;
         assert hardwareConfig != null;
-        int cost = calculateCost(hardwareConfig);
-        if (cost > this.missile.getBudget()) {
-            LOGGER.warn(
-                    "{}: missile is too expensive {}, budget only {}",
-                    this.missile.getId(),
-                    cost,
-                    this.missile.getBudget());
-            return;
+        if (!ignoreBudget) {
+            int cost = calculateCost(hardwareConfig);
+            if (cost > this.missile.getBudget()) {
+                LOGGER.warn(
+                        "{}: missile is too expensive {}, budget only {}",
+                        this.missile.getId(),
+                        cost,
+                        this.missile.getBudget());
+                return;
+            }
         }
-        // TODO: implement
+
+        this.warhead = hardwareConfig.getWarhead();
+        switch (hardwareConfig.getAirframe()) {
+            case DEFAULT_AIRFRAME:
+                this.drag = 0.05D;
+                this.maxRotationInput = 0.5D;
+                this.rotationVariance = 0.0D;
+                break;
+            default:
+                LOGGER.error("{}: unknown airframe", this.missile.getId());
+                return;
+        }
+        switch (hardwareConfig.getMotor()) {
+            case SINGLE_STAGE_M:
+                this.accelerationCurve =
+                        (Integer n) -> {
+                            return n < 50 ? 0.5D : 0.0D;
+                        };
+
+                this.accelerationAbsVariance = 0.0D;
+                break;
+            default:
+                LOGGER.error("{}: unknown motor", this.missile.getId());
+                return;
+        }
+        switch (hardwareConfig.getBattery()) {
+            case LI_ION_M:
+                this.timeToLive = 200;
+                break;
+            default:
+                LOGGER.error("{}: unknown battery", this.missile.getId());
+                return;
+        }
+        switch (hardwareConfig.getSeeker()) {
+            case NO_SEEKER:
+                this.seekerHeadTargetPosVariance = 0.0D;
+                this.seekerHeadTargetVelVariance = 0.0D;
+                break;
+            default:
+                LOGGER.error("{}: unknown seeker", this.missile.getId());
+                return;
+        }
+        switch (hardwareConfig.getInertialSystem()) {
+            case DEFAULT_IMU:
+                this.posVariance = 0.0D;
+                this.velVariance = 0.0D;
+                this.headingVariance = 0.0D;
+                break;
+            default:
+                LOGGER.error("{}: unknown imu", this.missile.getId());
+                return;
+        }
+
         LOGGER.info("{}: loaded missile hardware config", this.missile.getId());
     }
 
@@ -225,46 +299,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private void applyFlightDynamics() {
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
-
-        double oldPropellant = this.propellant;
-        this.propellant = Math.max(0.0D, this.propellant - 0.5D);
-        double spentPropellant = oldPropellant - this.propellant;
-        LOGGER.info("spentPropellant: {}", spentPropellant);
-        LOGGER.info("thrust fac: {}", spentPropellant * this.exhaustVelocity);
-        double weight = this.dryMass + this.propellant;
-
-        Vec3d heading = thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
-        // using Tsiolkovsky's rocket equation
-        Vec3d thrust = heading.multiply(spentPropellant * this.exhaustVelocity);
-        LOGGER.info("heading: {}", heading);
-        // TODO: drag
-        // Vec3d drag =
-        Vec3d acceleration = (thrust.add(this.gravitationalAcceleration));
-        LOGGER.info("acceleration: {}", acceleration);
-        // TODO: clamp velocity because of Minecraft limitations
-        // thisObject.velocityDirty = true;
-
-        // vel = new Vec3d(1D, 0D, 0D);
-        LOGGER.info("vel: {}", thisObject.getVelocity());
-        // thisObject.setPosition(thisObject.getX() + vel.x, thisObject.getY() + vel.y,
-        // thisObject.getZ() + vel.z);
-        thisObject.setVelocity(thisObject.getVelocity().add(acceleration));
-        thisObject.move(MovementType.SELF, thisObject.getVelocity());
-        // set the velocity twice as the velocity might be changed when colliding
-        // the original firework rocket code does this, too
-        thisObject.setVelocity(thisObject.getVelocity().add(acceleration));
-        thisObject.velocityDirty = true;
-
-        // TODO: check rotation is correctly set
-        // double posX = 0.0D;
-        // double posY = 160.0D;
-        // double posZ = 0.0D;
-        // float yaw = (float) (MathHelper.atan2(velX, velZ) * 180.0F / (float) Math.PI);
-        // float pitch = (float) (MathHelper.atan2(velY, Math.sqrt(velX * velX + velZ * velZ)) *
-        // 180.0F
-        // / (float) Math.PI);
-        // // maybe use setPosition instead
-        // thisObject.refreshPositionAndAngles(posX, posY, posZ, yaw, pitch);
+        // TODO: implement
     }
 
     private MissileState constructMissileState() {
@@ -341,7 +376,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
 
         // should detonate?
-        if (this.tickCount >= this.missileSelfDestructCount
+        if (this.tickCount >= this.timeToLive
                 && thisObject.getWorld() instanceof ServerWorld serverWorld) {
             thisObject.explodeAndRemove(serverWorld);
         }
@@ -361,6 +396,29 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                                 .setMissile(this.missile)
                                 .build());
         thisObject.discard();
+    }
+
+    private void detonateWarhead(ServerWorld world) {
+        assert this.missile != null;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+
+        switch (this.warhead) {
+            case BLANK:
+                // do nothing
+                break;
+            case TNT_M:
+                world.createExplosion(
+                        thisObject,
+                        thisObject.getX(),
+                        thisObject.getY(),
+                        thisObject.getZ(),
+                        6,
+                        World.ExplosionSourceType.TNT);
+                break;
+            default:
+                LOGGER.error("{}: unknown warhead", this.missile.getId());
+                return;
+        }
     }
 
     @Inject(at = @At("HEAD"), method = "tick()V", cancellable = true)
@@ -384,17 +442,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             method = "explodeAndRemove(Lnet/minecraft/server/world/ServerWorld;)V",
             cancellable = true)
     private void explodeAndRemoveInject(ServerWorld world, CallbackInfo info) {
-        // TODO: check warhead config
         if (this.missile != null) {
             LOGGER.info("missile explode");
-            FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
-            world.createExplosion(
-                    thisObject,
-                    thisObject.getX(),
-                    thisObject.getY(),
-                    thisObject.getZ(),
-                    6,
-                    World.ExplosionSourceType.TNT);
+            detonateWarhead(world);
             this.discardAndNotify();
             info.cancel();
         }
