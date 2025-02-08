@@ -23,6 +23,7 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.world.World;
@@ -69,7 +70,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private Function<Integer, Double> accelerationCurve;
     // in degrees per tick
     // applied to both yaw and pitch input
-    private Double maxRotationInput;
+    private Float maxRotationInput;
 
     private Double accelerationAbsVariance;
     private Double rotationVariance;
@@ -236,7 +237,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         switch (hardwareConfig.getAirframe()) {
             case DEFAULT_AIRFRAME:
                 this.drag = 0.05D;
-                this.maxRotationInput = 0.5D;
+                this.maxRotationInput = 0.5F;
                 this.rotationVariance = 30.0D;
                 break;
             default:
@@ -311,7 +312,14 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             discardAndNotify();
             throw new MissileDiscardedException();
         }
-        // TODO: implement
+        Vec2f rotTurn = new Vec2f((float) controlInput.getPitchTurn(), (float) controlInput.getYawTurn());
+        float len = rotTurn.length();
+        // clamp without changing the direction of turn
+        if (len > this.maxRotationInput) {
+            rotTurn.multiply(this.maxRotationInput/len);
+        }
+        this.setPitch(this.getPitch()+rotTurn.x);
+        this.setYaw(this.getYaw()+rotTurn.y);
     }
 
     // Update velocity and position of the missile.
