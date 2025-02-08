@@ -1,5 +1,6 @@
 package com.chrisbesch.mcmissile.mixin;
 
+import com.chrisbesch.mcmissile.MissileDiscardedException;
 import com.chrisbesch.mcmissile.guidance.ControlInput;
 import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
@@ -43,11 +44,6 @@ import java.util.regex.Pattern;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
-    class MissileDiscardedException extends Exception {
-        // TODO: needed?
-        // public MissileDiscardedException() {}
-    }
-
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -307,12 +303,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
                 thisObject.explodeAndRemove(serverWorld);
             } else {
-                thisObject.discard();
+                discardAndNotify();
             }
             throw new MissileDiscardedException();
         }
         if (controlInput.getDisarm()) {
-            thisObject.discard();
+            discardAndNotify();
             throw new MissileDiscardedException();
         }
         // TODO: implement
