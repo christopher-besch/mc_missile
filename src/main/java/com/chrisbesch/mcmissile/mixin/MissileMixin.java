@@ -43,6 +43,11 @@ import java.util.regex.Pattern;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
+    class MissileDiscardedException extends Exception {
+        // TODO: needed?
+        // public MissileDiscardedException() {}
+    }
+
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -101,10 +106,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             LOGGER.info("rocket doesn't have explosives");
             return;
         }
-        // TODO: figuring out if the rocket has big balls isn't working
-        // var bigBallCount = explosions.stream().filter(e -> e.shape ==
-        // FireworkExplosionComponent.Type.BIG_BALL).count();
-        // LOGGER.info("{}", bigBallCount);
 
         Text customName = thisObject.getStack().get(DataComponentTypes.CUSTOM_NAME);
         if (customName == null) {
@@ -125,6 +126,10 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                         // don't do negative numbers
                         .setId(Math.abs(this.random.nextInt()))
                         // TODO: set proper budget
+                        // TODO: figuring out if the rocket has big balls isn't working
+                        // var bigBallCount = explosions.stream().filter(e -> e.shape ==
+                        // FireworkExplosionComponent.Type.BIG_BALL).count();
+                        // LOGGER.info("{}", bigBallCount);
                         .setBudget(0);
 
         try {
@@ -184,7 +189,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
-    private void readControlInput() {
+    private void readControlInput() throws MissileDiscardedException {
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
@@ -289,13 +294,27 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private int calculateCost(MissileHardwareConfig hardwareConfig) {
         assert this.missile != null;
         assert hardwareConfig != null;
-        // TODO: implement
         return 0;
     }
 
-    private void applyControlInput(ControlInput controlInput) {
+    private void applyControlInput(ControlInput controlInput) throws MissileDiscardedException {
         assert this.missile != null;
         assert controlInput != null;
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+
+        if (controlInput.getExplode()) {
+
+            if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
+                thisObject.explodeAndRemove(serverWorld);
+            } else {
+                thisObject.discard();
+            }
+            throw new MissileDiscardedException();
+        }
+        if (controlInput.getDisarm()) {
+            thisObject.discard();
+            throw new MissileDiscardedException();
+        }
         // TODO: implement
     }
 
@@ -333,6 +352,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
+        // TODO: variance
         Vec3d pos = thisObject.getPos();
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
@@ -347,6 +367,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 .setVelZ(vel.z)
                 .setPitch(pitch)
                 .setYaw(yaw)
+                // TODO: seeker output
                 .setTargetLock(false)
                 .setDestroyed(false)
                 .setMissile(this.missile)
@@ -378,9 +399,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         if (this.tickCount == 0) {
             this.launchMissile();
         } else {
-            readControlInput();
-            applyFlightDynamics();
-            sendMissileState();
+            try {
+                readControlInput();
+                applyFlightDynamics();
+                sendMissileState();
+            } catch (MissileDiscardedException e) {
+                // increase life out of courtesy before the end
+                ++tickCount;
+                return;
+            }
         }
         // entity collision check //
         // We can always hit, this::canHit would be cleaner though.
@@ -398,7 +425,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 && thisObject.isAlive()
                 && hitResult.getType() != HitResult.Type.MISS) {
             thisObject.hitOrDeflect(hitResult);
-            // TODO: why is this needed?
             thisObject.velocityDirty = true;
         }
 

@@ -51,7 +51,7 @@ message MissileState {
 }
 
 message MissileHardwareConfig {
-    // - sniper arrow without explosion
+    // - sniper arrow without explosion (the faster the more damage)
     // - tnt (different strengths)
     // - effect (different types)
     // - inert
