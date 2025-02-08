@@ -358,21 +358,20 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
-        // TODO: variance
         Vec3d pos = thisObject.getPos();
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
         return MissileState.newBuilder()
                 .setTime(this.tickCount)
-                .setPosX(pos.x)
-                .setPosY(pos.y)
-                .setPosZ(pos.z)
-                .setVelX(vel.x)
-                .setVelY(vel.y)
-                .setVelZ(vel.z)
-                .setPitch(pitch)
-                .setYaw(yaw)
+                .setPosX(pos.x + this.random.nextGaussian() * this.posVariance)
+                .setPosY(pos.y + this.random.nextGaussian() * this.posVariance)
+                .setPosZ(pos.z + this.random.nextGaussian() * this.posVariance)
+                .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
+                .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
+                .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
+                .setPitch(pitch + this.random.nextGaussian() * this.rotationVariance)
+                .setYaw(yaw + this.random.nextGaussian() * this.rotationVariance)
                 // TODO: seeker output
                 .setTargetLock(false)
                 .setDestroyed(false)
