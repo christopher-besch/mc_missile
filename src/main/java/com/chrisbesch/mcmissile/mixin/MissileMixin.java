@@ -187,6 +187,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             thisObject.setVelocity(Vec3d.ZERO);
             thisObject.velocityDirty = true;
         }
+        detectEntities(thisObject, 5, 6, 15);
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
@@ -204,7 +205,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             }
             applyControlInput(controlInput);
         }
-        detectEntities(thisObject, 5, 6, 15);
     }
 
     private <T extends Entity> void detectEntities(
