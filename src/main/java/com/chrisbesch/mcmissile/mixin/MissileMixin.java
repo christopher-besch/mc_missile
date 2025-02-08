@@ -72,7 +72,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // applied to both yaw and pitch input
     private Float maxRotationInput;
 
-    private Double accelerationAbsVariance;
+    private Double accelerationRelVariance;
     private Double rotationVariance;
 
     private Double posVariance;
@@ -251,7 +251,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                             return n < 15 ? 0.4D : 0.0D;
                         };
 
-                this.accelerationAbsVariance = 0.01D;
+                this.accelerationRelVariance = 0.01D;
                 break;
             default:
                 LOGGER.error("{}: unknown motor", this.missile.getId());
@@ -312,14 +312,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             discardAndNotify();
             throw new MissileDiscardedException();
         }
-        Vec2f rotTurn = new Vec2f((float) controlInput.getPitchTurn(), (float) controlInput.getYawTurn());
+        Vec2f rotTurn =
+                new Vec2f((float) controlInput.getPitchTurn(), (float) controlInput.getYawTurn());
         float len = rotTurn.length();
         // clamp without changing the direction of turn
         if (len > this.maxRotationInput) {
-            rotTurn.multiply(this.maxRotationInput/len);
+            rotTurn.multiply(this.maxRotationInput / len);
         }
-        this.setPitch(this.getPitch()+rotTurn.x);
-        this.setYaw(this.getYaw()+rotTurn.y);
+        this.setPitch(this.getPitch() + rotTurn.x);
+        this.setYaw(this.getYaw() + rotTurn.y);
     }
 
     // Update velocity and position of the missile.
@@ -340,8 +341,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 this.gravity.add(
                         heading.multiply(
                                 this.accelerationCurve.apply(this.tickCount)
-                                        + this.random.nextGaussian()
-                                                * this.accelerationAbsVariance));
+                                        * (1.0D
+                                                + this.random.nextGaussian()
+                                                        * this.accelerationRelVariance)));
         Vec3d vel = thisObject.getVelocity().add(acc);
         Vec3d velWithDrag = vel.multiply(1.0D - this.drag);
         thisObject.setVelocity(velWithDrag);
