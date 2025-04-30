@@ -175,6 +175,11 @@ public /* singleton */ class GuidanceStubManager {
                 this.missileStateObservers.size(),
                 this.finishLatches.size(),
                 this.latestControlInputs.size());
+        LOGGER.info(
+                "time: {} pitch: {} yaw: {}",
+                missileState.getTime(),
+                missileState.getPitch(),
+                missileState.getYaw());
         LOGGER.info("{}: sending missile state", missileState.getMissile().getId());
         try {
             this.missileStateObservers.get(missileState.getMissile()).onNext(missileState);

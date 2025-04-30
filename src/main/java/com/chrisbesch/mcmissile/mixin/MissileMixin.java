@@ -320,6 +320,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     // Update velocity and position of the missile.
     private void applyFlightDynamics() {
+        // TODO: remove
+        LOGGER.info("applying flight dynamics, time: ", this.tickCount);
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
@@ -444,6 +446,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         GuidanceStubManager.getInstance()
                 .endGuidanceConnection(
                         MissileState.newBuilder()
+                                .setTime(this.tickCount)
                                 .setDestroyed(true)
                                 .setMissile(this.missile)
                                 .build());
