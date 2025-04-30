@@ -365,8 +365,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
                 .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
                 .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
-                .setPitch(pitch + this.random.nextGaussian() * this.rotationVariance)
-                .setYaw(yaw + this.random.nextGaussian() * this.rotationVariance)
+                .setPitch(pitch + this.random.nextGaussian() * this.headingVariance)
+                .setYaw(yaw + this.random.nextGaussian() * this.headingVariance)
                 // TODO: seeker output
                 .setTargetLock(false)
                 .setDestroyed(false)
