@@ -14,9 +14,6 @@ message Missile {
 }
 
 message MissileState {
-    int32 id = 1;
-    int32 lastControlInputId = 2;
-
     // may not change during flight
     Missile missile = 3;
 
@@ -119,6 +116,9 @@ message MissileHardwareConfig {
 }
 
 message ControlInput {
+    // The guidance server sends ControlInput structs with increasing id.
+    // The first ControlInput id is 1.
+    // This is used to detect when Controlinput structs arrive too late or out of order.
     int32 id = 1;
 
     // only to be sent in first message
