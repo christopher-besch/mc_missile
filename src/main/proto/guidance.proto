@@ -43,6 +43,7 @@ message MissileState {
     double targetVelY = 18;
     double targetVelZ = 19;
 
+    // only to be considered when not destroyed and targetLock
     bool targetLock = 20;
     bool destroyed = 21;
 }
