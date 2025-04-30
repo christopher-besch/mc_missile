@@ -3,7 +3,7 @@ This is a [Fabric](https://wiki.fabricmc.net/start) Minecraft mod.
 
 ### Development environment
 - [Install Docker](https://docs.docker.com/engine/install).
-- Create the dev container in this directory with: `docker run --net host --rm -ti --name mc_missile_java -v ./:/home/gradle/mc_missile -p 25565:25565 --entrypoint /bin/bash gradle`
+- Create the dev container in this directory with: `sudo docker run --net host -ti --name mc_missile_java -v ./:/home/gradle/mc_missile -p 25565:25565 --entrypoint /bin/bash gradle`
 - When you leave that shell start the container again with: `sudo docker start mc_missile_java`
 - Now you can enter it with: `sudo docker exec -ti mc_missile_java /bin/bash`
 
