@@ -232,8 +232,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         switch (hardwareConfig.getAirframe()) {
             case DEFAULT_AIRFRAME:
                 this.drag = 0.05D;
-                this.maxRotationInput = 800.0F;
-                this.rotationVariance = 30.0D;
+                this.maxRotationInput = 10.0F;
+                this.rotationVariance = 8.0D;
                 break;
             default:
                 LOGGER.error("{}: unknown airframe", this.missile.getId());
