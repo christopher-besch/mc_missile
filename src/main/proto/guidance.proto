@@ -33,18 +33,21 @@ message MissileState {
     double pitch = 11;
     double yaw = 12;
 
-    // only to be considered when not destroyed and targetLock
+    // only to be considered when not destroyed and targetLock and targetVisible
     double targetPosX = 13;
     double targetPosY = 15;
     double targetPosZ = 16;
 
-    // only to be considered when not destroyed and targetLock
+    // only to be considered when not destroyed and targetLock and targetVisible
     double targetVelX = 17;
     double targetVelY = 18;
     double targetVelZ = 19;
 
-    // only to be considered when not destroyed and targetLock
+    // only to be considered when not destroyed
     bool targetLock = 20;
+    // only to be considered when not destroyed and targetLock
+    bool targetVisible = 22;
+
     bool destroyed = 21;
 }
 
@@ -103,8 +106,12 @@ message MissileHardwareConfig {
     // - block type
     enum Seeker {
         NO_SEEKER = 0;
+        IR_SEEKER_M = 1;
     }
     Seeker seeker = 5;
+    // you could set this to 'pig' for example
+    // when you set this to '' (an empty string) all living entities will be targeted
+    string seeker_entity_name = 9;
 
     // position/velocity accuracy
     enum InertialSystem {

@@ -12,18 +12,24 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.TypeFilter;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec2f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
 import org.slf4j.Logger;
@@ -76,6 +82,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     private Double seekerHeadTargetPosVariance;
     private Double seekerHeadTargetVelVariance;
+
+    private Double seekerHeadFOV;
+    private Double seekerHeadRange;
+    private boolean seekerHeadShouldTargetEntity;
+    private TypeFilter<Entity, ?> sensorHeadEntityFilter;
+    private Entity seekerHeadEntityLock;
 
     private MissileHardwareConfig.Warhead warhead;
 
@@ -178,10 +190,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             thisObject.setVelocity(Vec3d.ZERO);
             thisObject.velocityDirty = true;
         }
+        lockIRSeeker();
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
     private void readControlInput() throws MissileDiscardedException {
+        LOGGER.info("reading control input: {}", this.tickCount);
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
@@ -191,10 +205,99 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // Only load the config directly after launch.
             // When there is no config given, use the default.
             if (this.tickCount == 1 && controlInput.getHardwareConfig() != null) {
+                LOGGER.info("loading hardware config from guidance server");
                 loadHardwareConfig(controlInput.getHardwareConfig(), false);
+            } else {
+                LOGGER.info("don't load hardware config from guidance server this time");
             }
             applyControlInput(controlInput);
         }
+    }
+
+    // Always run this just before we sent the missile state to the guidance server.
+    private void lockIRSeeker() {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+        // only lock onto first target
+        if (this.seekerHeadEntityLock != null) {
+            return;
+        }
+        if (!this.seekerHeadShouldTargetEntity) {
+            return;
+        }
+
+        World world = thisObject.getWorld();
+        if (!(thisObject.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        Vec3d pos = thisObject.getPos();
+
+        List<? extends Entity> possible_targets =
+                serverWorld.getEntitiesByType(
+                        this.sensorHeadEntityFilter,
+                        // search in a large box around the missile
+                        new Box(
+                                pos.getX() - this.seekerHeadRange,
+                                pos.getY() - this.seekerHeadRange,
+                                pos.getZ() - this.seekerHeadRange,
+                                pos.getX() + this.seekerHeadRange,
+                                pos.getY() + this.seekerHeadRange,
+                                pos.getZ() + this.seekerHeadRange),
+                        possible_target ->
+                                (this.canSee((Entity) possible_target))
+                                        // check the target is not out of range (i.e. in the corners
+                                        // of the big box)
+                                        && pos.subtract(possible_target.getPos()).lengthSquared()
+                                                <= (this.seekerHeadRange * this.seekerHeadRange)
+                                        // don't target yourself
+                                        && possible_target != thisObject.getOwner());
+        this.seekerHeadEntityLock = minAngleTarget(possible_targets);
+        // TODO: remove
+        if (this.seekerHeadEntityLock != null) {
+            this.seekerHeadEntityLock.setGlowing(true);
+        }
+    }
+
+    private Entity minAngleTarget(List<? extends Entity> targets) {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+        Vec3d missile_heading =
+                thisObject
+                        .getRotationVector(-thisObject.getPitch(), -thisObject.getYaw())
+                        .normalize();
+        Entity maxTarget = null;
+        // only accept values that are not outside our field of view
+        double maxDotProd = Math.cos(this.seekerHeadFOV);
+        for (Entity entity : targets) {
+            Vec3d dir_to_target = entity.getPos().subtract(thisObject.getPos()).normalize();
+            double dotProd = missile_heading.dotProduct(dir_to_target);
+            // TODO: remove
+            LOGGER.info("{}", dotProd);
+            // overwrite old data to include edge case
+            if (dotProd >= maxDotProd) {
+                maxDotProd = dotProd;
+                maxTarget = entity;
+            }
+        }
+        // TODO: remove
+        LOGGER.info("{}", maxDotProd);
+        return maxTarget;
+    }
+
+    private boolean canSee(Entity entity) {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+        if (entity.getWorld() != this.getWorld()) {
+            return false;
+        }
+        return this.getWorld()
+                        .raycast(
+                                new RaycastContext(
+                                        thisObject.getPos(),
+                                        entity.getPos(),
+                                        RaycastContext.ShapeType.COLLIDER,
+                                        RaycastContext.FluidHandling.NONE,
+                                        this))
+                        .getType()
+                == HitResult.Type.MISS;
     }
 
     private void loadDefaultHardwareConfig() {
@@ -203,7 +306,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // default hardware
         loadHardwareConfig(
                 MissileHardwareConfig.newBuilder()
-                        .setWarhead(MissileHardwareConfig.Warhead.TNT_M)
+                        .setWarhead(MissileHardwareConfig.Warhead.BLANK)
                         .setAirframe(MissileHardwareConfig.Airframe.DEFAULT_AIRFRAME)
                         .setMotor(MissileHardwareConfig.Motor.SINGLE_STAGE_M)
                         .setBattery(MissileHardwareConfig.Battery.LI_ION_M)
@@ -262,8 +365,26 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
         switch (hardwareConfig.getSeeker()) {
             case NO_SEEKER:
+                this.seekerHeadShouldTargetEntity = false;
+                // TODO: remove
+                LOGGER.info("very bad");
+                break;
+            case IR_SEEKER_M:
+                // TODO: remove
+                LOGGER.info("hihi");
+                this.seekerHeadShouldTargetEntity = true;
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;
+                this.seekerHeadFOV = 1.0D;
+                this.seekerHeadRange = 200.0D;
+                var seekerEntityName = hardwareConfig.getSeekerEntityName();
+                if (seekerEntityName == null || seekerEntityName == "") {
+                    this.sensorHeadEntityFilter = TypeFilter.instanceOf(LivingEntity.class);
+                } else {
+                    this.sensorHeadEntityFilter =
+                            (TypeFilter<Entity, ?>)
+                                    Registries.ENTITY_TYPE.get(Identifier.of(seekerEntityName));
+                }
                 break;
             default:
                 LOGGER.error("{}: unknown seeker", this.missile.getId());
@@ -359,21 +480,58 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
-        return MissileState.newBuilder()
-                .setTime(this.tickCount)
-                .setPosX(pos.x + this.random.nextGaussian() * this.posVariance)
-                .setPosY(pos.y + this.random.nextGaussian() * this.posVariance)
-                .setPosZ(pos.z + this.random.nextGaussian() * this.posVariance)
-                .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
-                .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
-                .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
-                .setPitch(pitch + this.random.nextGaussian() * this.headingVariance)
-                .setYaw(yaw + this.random.nextGaussian() * this.headingVariance)
-                // TODO: seeker output
-                .setTargetLock(false)
-                .setDestroyed(false)
-                .setMissile(this.missile)
-                .build();
+        var builder =
+                MissileState.newBuilder()
+                        .setTime(this.tickCount)
+                        .setPosX(pos.x + this.random.nextGaussian() * this.posVariance)
+                        .setPosY(pos.y + this.random.nextGaussian() * this.posVariance)
+                        .setPosZ(pos.z + this.random.nextGaussian() * this.posVariance)
+                        .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
+                        .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
+                        .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
+                        .setPitch(pitch + this.random.nextGaussian() * this.headingVariance)
+                        .setYaw(yaw + this.random.nextGaussian() * this.headingVariance)
+                        .setDestroyed(false)
+                        .setMissile(this.missile);
+        if (this.seekerHeadEntityLock != null) {
+            // TODO: remove
+            LOGGER.info("target lock");
+            builder.setTargetLock(true);
+            if (this.canSee(this.seekerHeadEntityLock)) {
+                var lockPos = this.seekerHeadEntityLock.getPos();
+                var lockVel = this.seekerHeadEntityLock.getVelocity();
+                builder.setTargetPosX(
+                                lockPos.x
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetPosVariance)
+                        .setTargetPosY(
+                                lockPos.y
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetPosVariance)
+                        .setTargetPosZ(
+                                lockPos.z
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetPosVariance)
+                        .setTargetVelX(
+                                lockVel.x
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetVelVariance)
+                        .setTargetVelY(
+                                lockVel.y
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetVelVariance)
+                        .setTargetVelZ(
+                                lockVel.z
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetVelVariance)
+                        .setTargetVisible(true);
+            } else {
+                builder.setTargetVisible(false);
+            }
+        } else {
+            builder.setTargetLock(false).setTargetVisible(false);
+        }
+        return builder.build();
     }
 
     private void sendMissileState() {
@@ -404,6 +562,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             try {
                 readControlInput();
                 applyFlightDynamics();
+                lockIRSeeker();
                 sendMissileState();
             } catch (MissileDiscardedException e) {
                 // increase life out of courtesy before the end
