@@ -249,7 +249,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 thisObject
                         .getRotationVector(-thisObject.getPitch(), -thisObject.getYaw())
                         .normalize();
-        Entity maxTarget = null;
+        Entity bestTarget = null;
         // only accept values that are not outside our field of view
         double maxDotProd = Math.cos(this.hardware.seekerHeadFOV);
         for (Entity entity : targets) {
@@ -260,12 +260,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // overwrite old data to include edge case
             if (dotProd >= maxDotProd) {
                 maxDotProd = dotProd;
-                maxTarget = entity;
+                bestTarget = entity;
             }
         }
         // TODO: remove
         LOGGER.info("{}", maxDotProd);
-        return maxTarget;
+        return bestTarget;
     }
 
     private boolean canSee(Entity entity) {
