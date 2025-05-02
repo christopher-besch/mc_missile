@@ -518,9 +518,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 return;
             }
         }
-        // entity collision check
-        // we can always hit, this::canHit would be cleaner though
-        // do this after the update to ensure we don't hit ourselfs at launch
+        // entity collision check //
+        // We can always hit, this::canHit would be cleaner though.
+        // Do this after the update to ensure we don't hit ourself at launch.
         HitResult hitResult = ProjectileUtil.getCollision(thisObject, e -> true);
         // In the original code this is run after the movement is applied so do it like this here,
         // too.
