@@ -1,10 +1,10 @@
 package com.chrisbesch.mcmissile.mixin;
 
+import com.chrisbesch.mcmissile.Hardware;
 import com.chrisbesch.mcmissile.MissileDiscardedException;
 import com.chrisbesch.mcmissile.guidance.ControlInput;
 import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
 import com.chrisbesch.mcmissile.guidance.Missile;
-import com.chrisbesch.mcmissile.guidance.MissileHardwareConfig;
 import com.chrisbesch.mcmissile.guidance.MissileState;
 
 import net.minecraft.component.DataComponentTypes;
@@ -12,18 +12,14 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
-import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.TypeFilter;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec2f;
@@ -40,12 +36,14 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
+    // position is stored in ProjectileEntity
+    // velocity is stored in ProjectileEntity
+    // rotation is stored in ProjectileEntity
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -53,6 +51,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             Pattern.compile("^mc_missile/(\\d\\d)/(.+)$");
 
     private final Random random = Random.create();
+
+    // load default hardware at start
+    private Hardware hardware = new Hardware();
 
     private int tickCount = 0;
 
@@ -62,34 +63,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // flight parameters //
     private Vec3d gravity = new Vec3d(0.0D, -0.2D, 0.0D);
 
-    private Integer timeToLive;
-
-    // position is stored in ProjectileEntity
-    // velocity is stored in ProjectileEntity
-    // rotation is stored in ProjectileEntity
-    private Double drag;
-    private Function<Integer, Double> accelerationCurve;
-    // in degrees per tick
-    // applied to both yaw and pitch input
-    private Float maxRotationInput;
-
-    private Double accelerationRelVariance;
-    private Double rotationVariance;
-
-    private Double posVariance;
-    private Double velVariance;
-    private Double headingVariance;
-
-    private Double seekerHeadTargetPosVariance;
-    private Double seekerHeadTargetVelVariance;
-
-    private Double seekerHeadFOV;
-    private Double seekerHeadRange;
-    private boolean seekerHeadShouldTargetEntity;
-    private TypeFilter<Entity, ?> sensorHeadEntityFilter;
     private Entity seekerHeadEntityLock;
-
-    private MissileHardwareConfig.Warhead warhead;
 
     // this constructor is only needed to make the compiler happy
     public MissileMixin(EntityType<? extends ProjectileEntity> entityType, World world) {
@@ -145,7 +119,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
 
         this.missile = missileBuilder.build();
-        loadDefaultHardwareConfig();
         LOGGER.info(
                 "detected missile {} on connection id {}, missile id {}",
                 this.missile.getName(),
@@ -206,8 +179,19 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // When there is no config given, use the default.
             if (this.tickCount == 1 && controlInput.getHardwareConfig() != null) {
                 LOGGER.info("loading hardware config from guidance server");
-                loadHardwareConfig(controlInput.getHardwareConfig(), false);
+                var requestedHardware = new Hardware(controlInput.getHardwareConfig());
+                var cost = requestedHardware.calculateCost();
+                if (cost > this.missile.getBudget()) {
+                    LOGGER.warn(
+                            "{}: missile is too expensive {}, budget only {}",
+                            this.missile.getId(),
+                            cost,
+                            this.missile.getBudget());
+                } else {
+                    this.hardware = requestedHardware;
+                }
             } else {
+                // TODO: remove
                 LOGGER.info("don't load hardware config from guidance server this time");
             }
             applyControlInput(controlInput);
@@ -221,7 +205,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         if (this.seekerHeadEntityLock != null) {
             return;
         }
-        if (!this.seekerHeadShouldTargetEntity) {
+        if (!this.hardware.seekerHeadShouldTargetEntity) {
             return;
         }
 
@@ -234,21 +218,22 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
         List<? extends Entity> possible_targets =
                 serverWorld.getEntitiesByType(
-                        this.sensorHeadEntityFilter,
+                        this.hardware.sensorHeadEntityFilter,
                         // search in a large box around the missile
                         new Box(
-                                pos.getX() - this.seekerHeadRange,
-                                pos.getY() - this.seekerHeadRange,
-                                pos.getZ() - this.seekerHeadRange,
-                                pos.getX() + this.seekerHeadRange,
-                                pos.getY() + this.seekerHeadRange,
-                                pos.getZ() + this.seekerHeadRange),
+                                pos.getX() - this.hardware.seekerHeadRange,
+                                pos.getY() - this.hardware.seekerHeadRange,
+                                pos.getZ() - this.hardware.seekerHeadRange,
+                                pos.getX() + this.hardware.seekerHeadRange,
+                                pos.getY() + this.hardware.seekerHeadRange,
+                                pos.getZ() + this.hardware.seekerHeadRange),
                         possible_target ->
                                 (this.canSee((Entity) possible_target))
                                         // check the target is not out of range (i.e. in the corners
                                         // of the big box)
                                         && pos.subtract(possible_target.getPos()).lengthSquared()
-                                                <= (this.seekerHeadRange * this.seekerHeadRange)
+                                                <= (this.hardware.seekerHeadRange
+                                                        * this.hardware.seekerHeadRange)
                                         // don't target yourself
                                         && possible_target != thisObject.getOwner());
         this.seekerHeadEntityLock = minAngleTarget(possible_targets);
@@ -266,7 +251,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                         .normalize();
         Entity maxTarget = null;
         // only accept values that are not outside our field of view
-        double maxDotProd = Math.cos(this.seekerHeadFOV);
+        double maxDotProd = Math.cos(this.hardware.seekerHeadFOV);
         for (Entity entity : targets) {
             Vec3d dir_to_target = entity.getPos().subtract(thisObject.getPos()).normalize();
             double dotProd = missile_heading.dotProduct(dir_to_target);
@@ -300,116 +285,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 == HitResult.Type.MISS;
     }
 
-    private void loadDefaultHardwareConfig() {
-        assert this.missile != null;
-        // it shall not be possible to construct a missile with a budged below the cost of the
-        // default hardware
-        loadHardwareConfig(
-                MissileHardwareConfig.newBuilder()
-                        .setWarhead(MissileHardwareConfig.Warhead.BLANK)
-                        .setAirframe(MissileHardwareConfig.Airframe.DEFAULT_AIRFRAME)
-                        .setMotor(MissileHardwareConfig.Motor.SINGLE_STAGE_M)
-                        .setBattery(MissileHardwareConfig.Battery.LI_ION_M)
-                        .setSeeker(MissileHardwareConfig.Seeker.NO_SEEKER)
-                        .setInertialSystem(MissileHardwareConfig.InertialSystem.DEFAULT_IMU)
-                        .build(),
-                false);
-    }
-
-    private void loadHardwareConfig(MissileHardwareConfig hardwareConfig, boolean ignoreBudget) {
-        assert this.missile != null;
-        assert hardwareConfig != null;
-        if (!ignoreBudget) {
-            int cost = calculateCost(hardwareConfig);
-            if (cost > this.missile.getBudget()) {
-                LOGGER.warn(
-                        "{}: missile is too expensive {}, budget only {}",
-                        this.missile.getId(),
-                        cost,
-                        this.missile.getBudget());
-                return;
-            }
-        }
-
-        this.warhead = hardwareConfig.getWarhead();
-        switch (hardwareConfig.getAirframe()) {
-            case DEFAULT_AIRFRAME:
-                this.drag = 0.05D;
-                this.maxRotationInput = 10.0F;
-                this.rotationVariance = 8.0D;
-                break;
-            default:
-                LOGGER.error("{}: unknown airframe", this.missile.getId());
-                return;
-        }
-        switch (hardwareConfig.getMotor()) {
-            case SINGLE_STAGE_M:
-                this.accelerationCurve =
-                        (Integer n) -> {
-                            return n < 90 ? 0.4D : 0.0D;
-                        };
-
-                this.accelerationRelVariance = 0.01D;
-                break;
-            default:
-                LOGGER.error("{}: unknown motor", this.missile.getId());
-                return;
-        }
-        switch (hardwareConfig.getBattery()) {
-            case LI_ION_M:
-                this.timeToLive = 200;
-                break;
-            default:
-                LOGGER.error("{}: unknown battery", this.missile.getId());
-                return;
-        }
-        switch (hardwareConfig.getSeeker()) {
-            case NO_SEEKER:
-                this.seekerHeadShouldTargetEntity = false;
-                // TODO: remove
-                LOGGER.info("very bad");
-                break;
-            case IR_SEEKER_M:
-                // TODO: remove
-                LOGGER.info("hihi");
-                this.seekerHeadShouldTargetEntity = true;
-                this.seekerHeadTargetPosVariance = 0.0D;
-                this.seekerHeadTargetVelVariance = 0.0D;
-                this.seekerHeadFOV = 1.0D;
-                this.seekerHeadRange = 200.0D;
-                var seekerEntityName = hardwareConfig.getSeekerEntityName();
-                if (seekerEntityName == null || seekerEntityName == "") {
-                    this.sensorHeadEntityFilter = TypeFilter.instanceOf(LivingEntity.class);
-                } else {
-                    this.sensorHeadEntityFilter =
-                            (TypeFilter<Entity, ?>)
-                                    Registries.ENTITY_TYPE.get(Identifier.of(seekerEntityName));
-                }
-                break;
-            default:
-                LOGGER.error("{}: unknown seeker", this.missile.getId());
-                return;
-        }
-        switch (hardwareConfig.getInertialSystem()) {
-            case DEFAULT_IMU:
-                this.posVariance = 0.0D;
-                this.velVariance = 0.0D;
-                this.headingVariance = 0.0D;
-                break;
-            default:
-                LOGGER.error("{}: unknown imu", this.missile.getId());
-                return;
-        }
-
-        LOGGER.info("{}: loaded missile hardware config", this.missile.getId());
-    }
-
-    private int calculateCost(MissileHardwareConfig hardwareConfig) {
-        assert this.missile != null;
-        assert hardwareConfig != null;
-        return 0;
-    }
-
     private void applyControlInput(ControlInput controlInput) throws MissileDiscardedException {
         assert this.missile != null;
         assert controlInput != null;
@@ -432,8 +307,8 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 new Vec2f((float) controlInput.getPitchTurn(), (float) controlInput.getYawTurn());
         float len = rotTurn.length();
         // clamp without changing the direction of turn
-        if (len > this.maxRotationInput) {
-            rotTurn.multiply(this.maxRotationInput / len);
+        if (len > this.hardware.maxRotationInput) {
+            rotTurn.multiply(this.hardware.maxRotationInput / len);
         }
         this.setPitch(this.getPitch() + rotTurn.x);
         this.setYaw(this.getYaw() + rotTurn.y);
@@ -449,21 +324,21 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // apply rotation variance
         thisObject.setPitch(
                 thisObject.getPitch()
-                        + (float) this.random.nextGaussian() * this.rotationVariance.floatValue());
+                        + (float) this.random.nextGaussian() * this.hardware.rotationVariance);
         thisObject.setYaw(
                 thisObject.getYaw()
-                        + (float) this.random.nextGaussian() * this.rotationVariance.floatValue());
+                        + (float) this.random.nextGaussian() * this.hardware.rotationVariance);
 
         Vec3d heading = thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
         Vec3d acc =
                 this.gravity.add(
                         heading.multiply(
-                                this.accelerationCurve.apply(this.tickCount)
+                                this.hardware.accelerationCurve.apply(this.tickCount)
                                         * (1.0D
                                                 + this.random.nextGaussian()
-                                                        * this.accelerationRelVariance)));
+                                                        * this.hardware.accelerationRelVariance)));
         Vec3d vel = thisObject.getVelocity().add(acc);
-        Vec3d velWithDrag = vel.multiply(1.0D - this.drag);
+        Vec3d velWithDrag = vel.multiply(1.0D - this.hardware.drag);
         thisObject.setVelocity(velWithDrag);
         thisObject.move(MovementType.SELF, velWithDrag);
         // set the velocity twice as the velocity might be changed when colliding
@@ -483,14 +358,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         var builder =
                 MissileState.newBuilder()
                         .setTime(this.tickCount)
-                        .setPosX(pos.x + this.random.nextGaussian() * this.posVariance)
-                        .setPosY(pos.y + this.random.nextGaussian() * this.posVariance)
-                        .setPosZ(pos.z + this.random.nextGaussian() * this.posVariance)
-                        .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
-                        .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
-                        .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
-                        .setPitch(pitch + this.random.nextGaussian() * this.headingVariance)
-                        .setYaw(yaw + this.random.nextGaussian() * this.headingVariance)
+                        .setPosX(pos.x + this.random.nextGaussian() * this.hardware.posVariance)
+                        .setPosY(pos.y + this.random.nextGaussian() * this.hardware.posVariance)
+                        .setPosZ(pos.z + this.random.nextGaussian() * this.hardware.posVariance)
+                        .setVelX(vel.x + this.random.nextGaussian() * this.hardware.velVariance)
+                        .setVelY(vel.y + this.random.nextGaussian() * this.hardware.velVariance)
+                        .setVelZ(vel.z + this.random.nextGaussian() * this.hardware.velVariance)
+                        .setPitch(
+                                pitch + this.random.nextGaussian() * this.hardware.headingVariance)
+                        .setYaw(yaw + this.random.nextGaussian() * this.hardware.headingVariance)
                         .setDestroyed(false)
                         .setMissile(this.missile);
         if (this.seekerHeadEntityLock != null) {
@@ -503,27 +379,27 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 builder.setTargetPosX(
                                 lockPos.x
                                         + this.random.nextGaussian()
-                                                * this.seekerHeadTargetPosVariance)
+                                                * this.hardware.seekerHeadTargetPosVariance)
                         .setTargetPosY(
                                 lockPos.y
                                         + this.random.nextGaussian()
-                                                * this.seekerHeadTargetPosVariance)
+                                                * this.hardware.seekerHeadTargetPosVariance)
                         .setTargetPosZ(
                                 lockPos.z
                                         + this.random.nextGaussian()
-                                                * this.seekerHeadTargetPosVariance)
+                                                * this.hardware.seekerHeadTargetPosVariance)
                         .setTargetVelX(
                                 lockVel.x
                                         + this.random.nextGaussian()
-                                                * this.seekerHeadTargetVelVariance)
+                                                * this.hardware.seekerHeadTargetVelVariance)
                         .setTargetVelY(
                                 lockVel.y
                                         + this.random.nextGaussian()
-                                                * this.seekerHeadTargetVelVariance)
+                                                * this.hardware.seekerHeadTargetVelVariance)
                         .setTargetVelZ(
                                 lockVel.z
                                         + this.random.nextGaussian()
-                                                * this.seekerHeadTargetVelVariance)
+                                                * this.hardware.seekerHeadTargetVelVariance)
                         .setTargetVisible(true);
             } else {
                 builder.setTargetVisible(false);
@@ -589,7 +465,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
 
         // should detonate?
-        if (this.tickCount >= this.timeToLive
+        if (this.tickCount >= this.hardware.timeToLive
                 && thisObject.getWorld() instanceof ServerWorld serverWorld) {
             thisObject.explodeAndRemove(serverWorld);
         }
@@ -616,22 +492,14 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
-        switch (this.warhead) {
-            case BLANK:
-                // do nothing
-                break;
-            case TNT_M:
-                world.createExplosion(
-                        thisObject,
-                        thisObject.getX(),
-                        thisObject.getY(),
-                        thisObject.getZ(),
-                        6,
-                        World.ExplosionSourceType.TNT);
-                break;
-            default:
-                LOGGER.error("{}: unknown warhead", this.missile.getId());
-                return;
+        if (this.hardware.shouldDetonate) {
+            world.createExplosion(
+                    thisObject,
+                    thisObject.getX(),
+                    thisObject.getY(),
+                    thisObject.getZ(),
+                    this.hardware.detonationPower,
+                    World.ExplosionSourceType.TNT);
         }
     }
 
