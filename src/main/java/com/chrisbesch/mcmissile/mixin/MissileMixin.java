@@ -209,7 +209,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    private <T extends Entity> void detectEntities() {
+    private void detectEntities() {
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         World world = thisObject.getWorld();
         if (!(thisObject.getWorld() instanceof ServerWorld serverWorld)) {
