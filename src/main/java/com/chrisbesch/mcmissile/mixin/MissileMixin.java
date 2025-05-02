@@ -269,45 +269,21 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         return maxTarget;
     }
 
-    private Box getBoxAt(double x, double y, double z, double width, double height) {
-        double f = width / 2.0F;
-        double g = height / 2.0F;
-        return new Box(
-                x - (double) f,
-                y - (double) g,
-                z - (double) f,
-                x + (double) f,
-                y + (double) g,
-                z + (double) f);
-    }
-
-    public boolean canSee(Entity entity) {
-        return this.canSee(
-                entity,
-                RaycastContext.ShapeType.COLLIDER,
-                RaycastContext.FluidHandling.NONE,
-                entity.getEyeY());
-    }
-
-    public boolean canSee(
-            Entity entity,
-            RaycastContext.ShapeType shapeType,
-            RaycastContext.FluidHandling fluidHandling,
-            double entityY) {
+    private boolean canSee(Entity entity) {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         if (entity.getWorld() != this.getWorld()) {
             return false;
-        } else {
-            Vec3d vec3d = new Vec3d(this.getX(), this.getEyeY(), this.getZ());
-            Vec3d vec3d2 = new Vec3d(entity.getX(), entityY, entity.getZ());
-            return vec3d2.distanceTo(vec3d) > 128.0
-                    ? false
-                    : this.getWorld()
-                                    .raycast(
-                                            new RaycastContext(
-                                                    vec3d, vec3d2, shapeType, fluidHandling, this))
-                                    .getType()
-                            == HitResult.Type.MISS;
         }
+        return this.getWorld()
+                        .raycast(
+                                new RaycastContext(
+                                        thisObject.getPos(),
+                                        entity.getPos(),
+                                        RaycastContext.ShapeType.COLLIDER,
+                                        RaycastContext.FluidHandling.NONE,
+                                        this))
+                        .getType()
+                == HitResult.Type.MISS;
     }
 
     private void loadDefaultHardwareConfig() {
