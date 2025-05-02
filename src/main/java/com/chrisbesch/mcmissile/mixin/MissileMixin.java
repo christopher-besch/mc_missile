@@ -12,6 +12,7 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
@@ -189,7 +190,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             thisObject.setVelocity(Vec3d.ZERO);
             thisObject.velocityDirty = true;
         }
-        detectEntities();
+        lockIRSeeker();
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
@@ -209,18 +210,31 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    private void detectEntities() {
+    // Always run this just before we sent the missile state to the guidance server.
+    private void lockIRSeeker() {
+        // TODO: remove
+        this.seekerHeadShouldTargetEntity = true;
+        this.sensorHeadEntityFilter = TypeFilter.instanceOf(LivingEntity.class);
+        this.seekerHeadRange = 200.0D;
+        this.seekerHeadFOV = 1.0D;
+        // TODO: end remove
+
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
+        // only lock onto first target
+        if (this.seekerHeadEntityLock != null) {
+            return;
+        }
+        if (!this.seekerHeadShouldTargetEntity) {
+            return;
+        }
+
         World world = thisObject.getWorld();
         if (!(thisObject.getWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
-        this.sensorHeadEntityFilter =
-                (TypeFilter<Entity, Entity>) Registries.ENTITY_TYPE.get(Identifier.of("pig"));
+
         Vec3d pos = thisObject.getPos();
-        // TODO: remove
-        this.seekerHeadRange = 200.0D;
-        this.seekerHeadFOV = 1.0D;
+
         List<? extends Entity> possible_targets =
                 serverWorld.getEntitiesByType(
                         this.sensorHeadEntityFilter,
@@ -239,6 +253,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                                         && pos.subtract(possible_target.getPos()).lengthSquared()
                                                 <= (this.seekerHeadRange * this.seekerHeadRange));
         this.seekerHeadEntityLock = minAngleTarget(possible_targets);
+        // TODO: remove
         if (this.seekerHeadEntityLock != null) {
             this.seekerHeadEntityLock.setGlowing(true);
         }
@@ -353,7 +368,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             case NO_SEEKER:
                 this.seekerHeadShouldTargetEntity = false;
                 break;
-            case ENTITY_SEEKER_M:
+            case IR_SEEKER_M:
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;
                 this.seekerHeadShouldTargetEntity = true;
@@ -361,7 +376,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 this.seekerHeadRange = 200.0D;
                 var seekerEntityName = hardwareConfig.getSeekerEntityName();
                 if (seekerEntityName == null) {
-                    this.sensorHeadEntityFilter = null;
+                    this.sensorHeadEntityFilter = TypeFilter.instanceOf(LivingEntity.class);
                 } else {
                     this.sensorHeadEntityFilter =
                             (TypeFilter<Entity, ?>)
@@ -507,6 +522,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             try {
                 readControlInput();
                 applyFlightDynamics();
+                lockIRSeeker();
                 sendMissileState();
             } catch (MissileDiscardedException e) {
                 // increase life out of courtesy before the end

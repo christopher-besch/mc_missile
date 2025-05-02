@@ -103,9 +103,10 @@ message MissileHardwareConfig {
     // - block type
     enum Seeker {
         NO_SEEKER = 0;
-        ENTITY_SEEKER_M = 1;
+        IR_SEEKER_M = 1;
     }
     Seeker seeker = 5;
+    // you could set this to 'pig' for example
     string seeker_entity_name = 9;
 
     // position/velocity accuracy
