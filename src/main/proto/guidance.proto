@@ -118,9 +118,6 @@ message MissileHardwareConfig {
         DEFAULT_IMU = 0;
     }
     InertialSystem inertialSystem = 6;
-    
-    string targetEntityRegex = 7;
-    string playerNameRegex = 8;
 }
 
 message ControlInput {
