@@ -117,8 +117,16 @@ public /* singleton */ class GuidanceStubManager {
         this.sendMissileState(initialMissileState);
     }
 
+    // When the guidance connection hasn't been created yet, this doesn't do anything.
     public void endGuidanceConnection(MissileState missileState) {
         assert missileState.getDestroyed();
+
+        if (this.missileStateObservers.get(missileState.getMissile()) == null) {
+            LOGGER.warn(
+                    "{}: trying to end guidance connection that doesn't exist",
+                    missileState.getMissile().getId());
+            return;
+        }
 
         this.sendMissileState(missileState);
         this.missileStateObservers.get(missileState.getMissile()).onCompleted();
