@@ -243,7 +243,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             case SINGLE_STAGE_M:
                 this.accelerationCurve =
                         (Integer n) -> {
-                            return n < 15 ? 0.4D : 0.0D;
+                            return n < 90 ? 0.4D : 0.0D;
                         };
 
                 this.accelerationRelVariance = 0.01D;
