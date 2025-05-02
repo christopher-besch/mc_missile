@@ -47,7 +47,7 @@ import java.util.regex.Pattern;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
-    private TypeFilter<Entity, ?> entityFilter;
+    private TypeFilter<Entity, ?> sensorHeadEntityFilter;
 
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -211,7 +211,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             FireworkRocketEntity thisObject, int cone_size, int size_increase, int range) {
         World world = thisObject.getWorld();
         if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
-            this.entityFilter =
+            this.sensorHeadEntityFilter =
                     (TypeFilter<Entity, ?>) Registries.ENTITY_TYPE.get(Identifier.of("pig"));
             Vec3d heading =
                     thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
@@ -230,7 +230,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 // AxolotlEntity axo;
                 targets.addAll(
                         serverWorld.getEntitiesByType(
-                                this.entityFilter, area, entityx -> this.canSee((Entity) entityx)));
+                                this.sensorHeadEntityFilter, area, entityx -> this.canSee((Entity) entityx)));
             }
             Entity target = minAngleTarget(targets);
             if (target != null) {
