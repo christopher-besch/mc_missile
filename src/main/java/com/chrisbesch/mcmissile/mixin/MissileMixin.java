@@ -195,6 +195,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     }
 
     private void readControlInput() throws MissileDiscardedException {
+        LOGGER.info("reading control input: {}", this.tickCount);
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
@@ -204,7 +205,10 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             // Only load the config directly after launch.
             // When there is no config given, use the default.
             if (this.tickCount == 1 && controlInput.getHardwareConfig() != null) {
+                LOGGER.info("loading hardware config from guidance server");
                 loadHardwareConfig(controlInput.getHardwareConfig(), false);
+            } else {
+                LOGGER.info("don't load hardware config from guidance server this time");
             }
             applyControlInput(controlInput);
         }
@@ -212,13 +216,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     // Always run this just before we sent the missile state to the guidance server.
     private void lockIRSeeker() {
-        // TODO: remove
-        this.seekerHeadShouldTargetEntity = true;
-        this.sensorHeadEntityFilter = TypeFilter.instanceOf(LivingEntity.class);
-        this.seekerHeadRange = 200.0D;
-        this.seekerHeadFOV = 1.0D;
-        // TODO: end remove
-
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         // only lock onto first target
         if (this.seekerHeadEntityLock != null) {
@@ -251,7 +248,9 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                                         // check the target is not out of range (i.e. in the corners
                                         // of the big box)
                                         && pos.subtract(possible_target.getPos()).lengthSquared()
-                                                <= (this.seekerHeadRange * this.seekerHeadRange));
+                                                <= (this.seekerHeadRange * this.seekerHeadRange)
+                                        // don't target yourself
+                                        && possible_target != thisObject.getOwner());
         this.seekerHeadEntityLock = minAngleTarget(possible_targets);
         // TODO: remove
         if (this.seekerHeadEntityLock != null) {
@@ -307,7 +306,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         // default hardware
         loadHardwareConfig(
                 MissileHardwareConfig.newBuilder()
-                        .setWarhead(MissileHardwareConfig.Warhead.TNT_M)
+                        .setWarhead(MissileHardwareConfig.Warhead.BLANK)
                         .setAirframe(MissileHardwareConfig.Airframe.DEFAULT_AIRFRAME)
                         .setMotor(MissileHardwareConfig.Motor.SINGLE_STAGE_M)
                         .setBattery(MissileHardwareConfig.Battery.LI_ION_M)
@@ -367,15 +366,19 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         switch (hardwareConfig.getSeeker()) {
             case NO_SEEKER:
                 this.seekerHeadShouldTargetEntity = false;
+                // TODO: remove
+                LOGGER.info("very bad");
                 break;
             case IR_SEEKER_M:
+                // TODO: remove
+                LOGGER.info("hihi");
+                this.seekerHeadShouldTargetEntity = true;
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;
-                this.seekerHeadShouldTargetEntity = true;
                 this.seekerHeadFOV = 1.0D;
                 this.seekerHeadRange = 200.0D;
                 var seekerEntityName = hardwareConfig.getSeekerEntityName();
-                if (seekerEntityName == null) {
+                if (seekerEntityName == null || seekerEntityName == "") {
                     this.sensorHeadEntityFilter = TypeFilter.instanceOf(LivingEntity.class);
                 } else {
                     this.sensorHeadEntityFilter =
@@ -477,21 +480,58 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Vec3d vel = thisObject.getVelocity();
         double pitch = thisObject.getPitch();
         double yaw = thisObject.getYaw();
-        return MissileState.newBuilder()
-                .setTime(this.tickCount)
-                .setPosX(pos.x + this.random.nextGaussian() * this.posVariance)
-                .setPosY(pos.y + this.random.nextGaussian() * this.posVariance)
-                .setPosZ(pos.z + this.random.nextGaussian() * this.posVariance)
-                .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
-                .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
-                .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
-                .setPitch(pitch + this.random.nextGaussian() * this.headingVariance)
-                .setYaw(yaw + this.random.nextGaussian() * this.headingVariance)
-                // TODO: seeker output
-                .setTargetLock(false)
-                .setDestroyed(false)
-                .setMissile(this.missile)
-                .build();
+        var builder =
+                MissileState.newBuilder()
+                        .setTime(this.tickCount)
+                        .setPosX(pos.x + this.random.nextGaussian() * this.posVariance)
+                        .setPosY(pos.y + this.random.nextGaussian() * this.posVariance)
+                        .setPosZ(pos.z + this.random.nextGaussian() * this.posVariance)
+                        .setVelX(vel.x + this.random.nextGaussian() * this.velVariance)
+                        .setVelY(vel.y + this.random.nextGaussian() * this.velVariance)
+                        .setVelZ(vel.z + this.random.nextGaussian() * this.velVariance)
+                        .setPitch(pitch + this.random.nextGaussian() * this.headingVariance)
+                        .setYaw(yaw + this.random.nextGaussian() * this.headingVariance)
+                        .setDestroyed(false)
+                        .setMissile(this.missile);
+        if (this.seekerHeadEntityLock != null) {
+            // TODO: remove
+            LOGGER.info("target lock");
+            builder.setTargetLock(true);
+            if (this.canSee(this.seekerHeadEntityLock)) {
+                var lockPos = this.seekerHeadEntityLock.getPos();
+                var lockVel = this.seekerHeadEntityLock.getVelocity();
+                builder.setTargetPosX(
+                                lockPos.x
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetPosVariance)
+                        .setTargetPosY(
+                                lockPos.y
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetPosVariance)
+                        .setTargetPosZ(
+                                lockPos.z
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetPosVariance)
+                        .setTargetVelX(
+                                lockVel.x
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetVelVariance)
+                        .setTargetVelY(
+                                lockVel.y
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetVelVariance)
+                        .setTargetVelZ(
+                                lockVel.z
+                                        + this.random.nextGaussian()
+                                                * this.seekerHeadTargetVelVariance)
+                        .setTargetVisible(true);
+            } else {
+                builder.setTargetVisible(false);
+            }
+        } else {
+            builder.setTargetLock(false).setTargetVisible(false);
+        }
+        return builder.build();
     }
 
     private void sendMissileState() {
