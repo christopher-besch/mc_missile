@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import java.util.function.Function;
 
 public class Hardware {
-    // TODO: better logging system
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -106,12 +105,8 @@ public class Hardware {
         switch (hardwareConfig.getSeeker()) {
             case NO_SEEKER:
                 this.seekerHeadShouldTargetEntity = false;
-                // TODO: remove
-                LOGGER.info("very bad");
                 break;
             case IR_SEEKER_M:
-                // TODO: remove
-                LOGGER.info("hihi");
                 this.seekerHeadShouldTargetEntity = true;
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;

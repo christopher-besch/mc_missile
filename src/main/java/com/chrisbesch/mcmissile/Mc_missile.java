@@ -1,5 +1,7 @@
 package com.chrisbesch.mcmissile;
 
+import com.chrisbesch.mcmissile.guidance.GuidanceStubManager;
+
 import net.fabricmc.api.ModInitializer;
 
 import org.slf4j.Logger;
@@ -19,6 +21,10 @@ public class Mc_missile implements ModInitializer {
         // However, some things (like resources) may still be uninitialized.
         // Proceed with mild caution.
 
-        LOGGER.info("Hello Fabric world!");
+        LOGGER.info("mc_missile booting up");
+        // TODO: load from environment
+        for (var connectionId : new int[] {69}) {
+            GuidanceStubManager.getInstance().createStub(connectionId);
+        }
     }
 }

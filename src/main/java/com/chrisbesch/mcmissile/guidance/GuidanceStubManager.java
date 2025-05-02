@@ -66,8 +66,13 @@ public /* singleton */ class GuidanceStubManager {
     }
 
     public void establishGuidanceConnection(MissileState initialMissileState) {
+        int connectionId = initialMissileState.getMissile().getConnectionId();
         // async stub
-        GuidanceStub stub = getStub(initialMissileState.getMissile().getConnectionId());
+        GuidanceStub stub = this.stubs.get(connectionId);
+        if (stub == null) {
+            LOGGER.warn("there is no stub with connectionId {}", connectionId);
+            return;
+        }
         this.finishLatches.put(initialMissileState.getMissile(), new CountDownLatch(1));
 
         StreamObserver<ControlInput> controlInputObserver =
@@ -192,12 +197,7 @@ public /* singleton */ class GuidanceStubManager {
         }
     }
 
-    // reuse the connection stub
-    private GuidanceStub getStub(int connectionId) {
-        if (this.stubs.get(connectionId) != null) {
-            LOGGER.info("reusing stub for server {}", connectionId);
-            return this.stubs.get(connectionId);
-        }
+    public void createStub(int connectionId) {
         LOGGER.info("creating new stub for server {}", connectionId);
         ManagedChannel channel =
                 Grpc.newChannelBuilder(
@@ -208,7 +208,39 @@ public /* singleton */ class GuidanceStubManager {
                         .build();
         GuidanceStub stub = GuidanceGrpc.newStub(channel);
         this.stubs.put(connectionId, stub);
-        return stub;
+        // TODO: move to other thread and call every minute
+        checkHealth();
+    }
+
+    // The health check is needed because grpc is lazy and doesn't actually
+    // establish a connection until it is absolutely needed. That means the the
+    // first missile fired would have to wait roughly half a second until the
+    // first control input arrives. That is way too slow.
+    private void checkHealth() {
+        for (var stubEntry : this.stubs.entrySet()) {
+            int connectionId = stubEntry.getKey();
+            var stub = stubEntry.getValue();
+            HealthRequest healthRequest = HealthRequest.newBuilder().build();
+
+            StreamObserver<HealthResponse> healthResponseObserver =
+                    new StreamObserver<HealthResponse>() {
+                        @Override
+                        public void onNext(HealthResponse controlInput) {
+                            LOGGER.info("health check received for stub {}", connectionId);
+                        }
+
+                        @Override
+                        public void onError(Throwable t) {
+                            LOGGER.error("health check failed for stub {}", connectionId);
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                            LOGGER.info("health check completed for stub {}", connectionId);
+                        }
+                    };
+            stub.healthCheck(healthRequest, healthResponseObserver);
+        }
     }
 
     private static String getServerAddress(int connectionId) {

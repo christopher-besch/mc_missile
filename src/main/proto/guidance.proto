@@ -137,6 +137,13 @@ message ControlInput {
     bool disarm = 6;
 }
 
+message HealthRequest {
+}
+
+message HealthResponse {
+}
+
 service Guidance {
-    rpc GetGuidance(stream MissileState) returns (stream ControlInput) {}
+    rpc GetGuidance(stream MissileState) returns (stream ControlInput);
+    rpc HealthCheck(HealthRequest) returns (HealthResponse);
 }
