@@ -38,17 +38,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Mixin(FireworkRocketEntity.class)
 public abstract class MissileMixin extends ProjectileEntity implements FlyingItemEntity {
-    private TypeFilter<Entity, ?> sensorHeadEntityFilter;
-
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -85,6 +81,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
 
     private Double seekerHeadTargetPosVariance;
     private Double seekerHeadTargetVelVariance;
+
+    private Double seekerHeadFOV;
+    private Double seekerHeadRange;
+    private boolean seekerHeadShouldTargetEntity;
+    private TypeFilter<Entity, ?> sensorHeadEntityFilter;
+    private Entity seekerHeadEntityLock;
 
     private MissileHardwareConfig.Warhead warhead;
 
@@ -187,7 +189,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             thisObject.setVelocity(Vec3d.ZERO);
             thisObject.velocityDirty = true;
         }
-        detectEntities(thisObject, 5, 6, 15);
+        detectEntities();
         GuidanceStubManager.getInstance().establishGuidanceConnection(constructMissileState());
     }
 
@@ -207,60 +209,64 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    private <T extends Entity> void detectEntities(
-            FireworkRocketEntity thisObject, int cone_size, int size_increase, int range) {
+    private <T extends Entity> void detectEntities() {
+        FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         World world = thisObject.getWorld();
-        if (thisObject.getWorld() instanceof ServerWorld serverWorld) {
-            this.sensorHeadEntityFilter =
-                    (TypeFilter<Entity, ?>) Registries.ENTITY_TYPE.get(Identifier.of("pig"));
-            Vec3d heading =
-                    thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
-            Vec3d pos = thisObject.getPos();
-            Set<Entity> targets = new HashSet<Entity>();
-            for (int i = 0; i <= range; i++) {
-                Box area =
-                        getBoxAt(
-                                pos.getX() + i * 0.5 * cone_size * heading.getX(),
-                                pos.getY() + i * 0.5 * cone_size * heading.getY(),
-                                pos.getZ() + i * 0.5 * cone_size * heading.getZ(),
-                                cone_size,
-                                cone_size);
-                cone_size += size_increase;
-                // Registries.ENTITY_TYPE.get();
-                // AxolotlEntity axo;
-                targets.addAll(
-                        serverWorld.getEntitiesByType(
-                                this.sensorHeadEntityFilter, area, entityx -> this.canSee((Entity) entityx)));
-            }
-            Entity target = minAngleTarget(targets);
-            if (target != null) {
-                target.setGlowing(true);
-            }
+        if (!(thisObject.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        this.sensorHeadEntityFilter =
+                (TypeFilter<Entity, Entity>) Registries.ENTITY_TYPE.get(Identifier.of("pig"));
+        Vec3d pos = thisObject.getPos();
+        // TODO: remove
+        this.seekerHeadRange = 200.0D;
+        this.seekerHeadFOV = 1.0D;
+        List<? extends Entity> possible_targets =
+                serverWorld.getEntitiesByType(
+                        this.sensorHeadEntityFilter,
+                        // search in a large box around the missile
+                        new Box(
+                                pos.getX() - this.seekerHeadRange,
+                                pos.getY() - this.seekerHeadRange,
+                                pos.getZ() - this.seekerHeadRange,
+                                pos.getX() + this.seekerHeadRange,
+                                pos.getY() + this.seekerHeadRange,
+                                pos.getZ() + this.seekerHeadRange),
+                        possible_target ->
+                                (this.canSee((Entity) possible_target))
+                                        // check the target is not out of range (i.e. in the corners
+                                        // of the big box)
+                                        && pos.subtract(possible_target.getPos()).lengthSquared()
+                                                <= (this.seekerHeadRange * this.seekerHeadRange));
+        this.seekerHeadEntityLock = minAngleTarget(possible_targets);
+        if (this.seekerHeadEntityLock != null) {
+            this.seekerHeadEntityLock.setGlowing(true);
         }
     }
 
-    private Entity minAngleTarget(Set<Entity> targets) {
+    private Entity minAngleTarget(List<? extends Entity> targets) {
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
-        Vec3d vec3d =
+        Vec3d missile_heading =
                 thisObject
                         .getRotationVector(-thisObject.getPitch(), -thisObject.getYaw())
                         .normalize();
-        Entity minTarget = null;
-        double angle = 0.0;
+        Entity maxTarget = null;
+        // only accept values that are not outside our field of view
+        double maxDotProd = Math.cos(this.seekerHeadFOV);
         for (Entity entity : targets) {
-            Vec3d vec3d2 =
-                    new Vec3d(
-                            this.getX() - entity.getX(),
-                            this.getY() - entity.getY(),
-                            this.getZ() - entity.getZ());
-            vec3d2 = vec3d2.normalize();
-            double g = vec3d.dotProduct(vec3d2);
-            if (Math.abs(g) > angle) {
-                angle = Math.abs(g);
-                minTarget = entity;
+            Vec3d dir_to_target = entity.getPos().subtract(thisObject.getPos()).normalize();
+            double dotProd = missile_heading.dotProduct(dir_to_target);
+            // TODO: remove
+            LOGGER.info("{}", dotProd);
+            // overwrite old data to include edge case
+            if (dotProd >= maxDotProd) {
+                maxDotProd = dotProd;
+                maxTarget = entity;
             }
         }
-        return minTarget;
+        // TODO: remove
+        LOGGER.info("{}", maxDotProd);
+        return maxTarget;
     }
 
     private Box getBoxAt(double x, double y, double z, double width, double height) {
@@ -369,8 +375,22 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
         switch (hardwareConfig.getSeeker()) {
             case NO_SEEKER:
+                this.seekerHeadShouldTargetEntity = false;
+                break;
+            case ENTITY_SEEKER_M:
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;
+                this.seekerHeadShouldTargetEntity = true;
+                this.seekerHeadFOV = 1.0D;
+                this.seekerHeadRange = 200.0D;
+                var seekerEntityName = hardwareConfig.getSeekerEntityName();
+                if (seekerEntityName == null) {
+                    this.sensorHeadEntityFilter = null;
+                } else {
+                    this.sensorHeadEntityFilter =
+                            (TypeFilter<Entity, ?>)
+                                    Registries.ENTITY_TYPE.get(Identifier.of(seekerEntityName));
+                }
                 break;
             default:
                 LOGGER.error("{}: unknown seeker", this.missile.getId());
