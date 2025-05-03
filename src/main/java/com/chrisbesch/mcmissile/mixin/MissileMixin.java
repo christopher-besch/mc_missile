@@ -184,7 +184,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             if (this.tickCount == 1 && controlInput.getHardwareConfig() != null) {
                 LOGGER.info("loading hardware config from guidance server");
                 var requestedHardware = new Hardware(controlInput.getHardwareConfig());
-                var cost = requestedHardware.calculateCost();
+                var cost = requestedHardware.cost;
                 if (cost > this.missile.getBudget()) {
                     LOGGER.warn(
                             "{}: missile is too expensive {}, budget only {}",

@@ -40,6 +40,15 @@ public class Hardware {
     // needs to be divisable by 3
     private static final int GLOWSTONE_DUST_VALUE = 81;
 
+    // There is no way to build a missile with a smaller budget.
+    private static final int MIN_BUDGET =
+            PAPER_VALUE * 1 / 3
+                    + GUNPOWDER_VALUE * 1 / 3
+                    + GUNPOWDER_VALUE * 1 / 3
+                    + DYE_VALUE * 1 / 3;
+
+    public int cost = 0;
+
     public Integer timeToLive;
 
     public double drag;
@@ -79,14 +88,17 @@ public class Hardware {
                         .setSeeker(MissileHardwareConfig.Seeker.NO_SEEKER)
                         .setInertialSystem(MissileHardwareConfig.InertialSystem.DEFAULT_IMU)
                         .build());
+        assert this.cost <= MIN_BUDGET;
     }
 
     public Hardware(MissileHardwareConfig hardwareConfig) {
         switch (hardwareConfig.getWarhead()) {
             case BLANK:
+                this.cost += 0;
                 this.shouldDetonate = false;
                 break;
             case TNT_M:
+                this.cost += 500;
                 this.shouldDetonate = true;
                 this.detonationPower = 6.0F;
                 break;
@@ -96,6 +108,7 @@ public class Hardware {
         }
         switch (hardwareConfig.getAirframe()) {
             case DEFAULT_AIRFRAME:
+                this.cost += 50;
                 this.drag = 0.05D;
                 this.maxRotationInput = 10.0F;
                 this.rotationVariance = 8.0F;
@@ -106,9 +119,10 @@ public class Hardware {
         }
         switch (hardwareConfig.getMotor()) {
             case SINGLE_STAGE_M:
+                this.cost += 50;
                 this.accelerationCurve =
                         (Integer n) -> {
-                            return n < 90 ? 0.4D : 0.0D;
+                            return n < 60 ? 0.4D : 0.0D;
                         };
 
                 this.accelerationRelVariance = 0.01D;
@@ -119,6 +133,7 @@ public class Hardware {
         }
         switch (hardwareConfig.getBattery()) {
             case LI_ION_M:
+                this.cost += 50;
                 this.timeToLive = 200;
                 break;
             default:
@@ -127,9 +142,11 @@ public class Hardware {
         }
         switch (hardwareConfig.getSeeker()) {
             case NO_SEEKER:
+                this.cost += 0;
                 this.seekerHeadShouldTargetEntity = false;
                 break;
             case IR_SEEKER_M:
+                this.cost += 500;
                 this.seekerHeadShouldTargetEntity = true;
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;
@@ -150,6 +167,7 @@ public class Hardware {
         }
         switch (hardwareConfig.getInertialSystem()) {
             case DEFAULT_IMU:
+                this.cost += 0;
                 this.posVariance = 0.0D;
                 this.velVariance = 0.0D;
                 this.headingVariance = 0.0D;
@@ -160,11 +178,6 @@ public class Hardware {
         }
 
         LOGGER.info("loaded missile hardware config");
-    }
-
-    public int calculateCost() {
-        // TODO:
-        return 0;
     }
 
     public static int calculateBudget(
