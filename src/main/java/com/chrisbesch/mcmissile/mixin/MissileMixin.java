@@ -47,8 +47,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private static final Pattern MISSILE_NAME_PATTERN =
-            Pattern.compile("^m/(\\d\\d)/(.+)$");
+    private static final Pattern MISSILE_NAME_PATTERN = Pattern.compile("^m/(\\d\\d)/(.+)$");
 
     private final Random random = Random.create();
 
@@ -319,17 +318,25 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     // Update velocity and position of the missile.
     private void applyFlightDynamics() {
         // TODO: remove
-        LOGGER.info("applying flight dynamics, time: ", this.tickCount);
+        LOGGER.info("applying flight dynamics, time: {}", this.tickCount);
         assert this.missile != null;
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
         // apply rotation variance
         thisObject.setPitch(
                 thisObject.getPitch()
-                        + (float) this.random.nextGaussian() * this.hardware.rotationVariance);
+                        // Don't apply rotation variance on the first tick -> give the seeker head
+                        // some chance of locking onto the target.
+                        + (this.tickCount <= 1
+                                ? 0.0F
+                                : (float) this.random.nextGaussian()
+                                        * this.hardware.rotationVariance));
         thisObject.setYaw(
                 thisObject.getYaw()
-                        + (float) this.random.nextGaussian() * this.hardware.rotationVariance);
+                        + (this.tickCount <= 1
+                                ? 0.0F
+                                : (float) this.random.nextGaussian()
+                                        * this.hardware.rotationVariance));
 
         Vec3d heading = thisObject.getRotationVector(-thisObject.getPitch(), -thisObject.getYaw());
         Vec3d acc =

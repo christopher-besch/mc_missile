@@ -110,7 +110,7 @@ public class Hardware {
                 this.seekerHeadShouldTargetEntity = true;
                 this.seekerHeadTargetPosVariance = 0.0D;
                 this.seekerHeadTargetVelVariance = 0.0D;
-                this.seekerHeadFOV = 1.0D;
+                this.seekerHeadFOV = 20.0D;
                 this.seekerHeadRange = 200.0D;
                 var seekerEntityName = hardwareConfig.getSeekerEntityName();
                 if (seekerEntityName == null || seekerEntityName == "") {
