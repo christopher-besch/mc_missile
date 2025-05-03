@@ -14,8 +14,8 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 // This singleton handles connections to the guidance and control server.
@@ -31,6 +31,8 @@ public /* singleton */ class GuidanceStubManager {
     // TODO: make this a config parameter
     static final boolean LOCALHOST_GUIDANCE_CONTROL = true;
     static final int PORT = 42069;
+    // in seconds
+    static final int HEALTH_CHECK_SCHEDULE = 30;
 
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -54,7 +56,7 @@ public /* singleton */ class GuidanceStubManager {
     private Map<Missile, StreamObserver<MissileState>> missileStateObservers =
             new ConcurrentHashMap<Missile, StreamObserver<MissileState>>();
 
-    private final ExecutorService helperExecutor = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService helperExecutor = Executors.newScheduledThreadPool(1);
 
     private GuidanceStubManager() {}
 
@@ -206,6 +208,7 @@ public /* singleton */ class GuidanceStubManager {
     }
 
     public void createStub(int connectionId) {
+        assert this.stubs.get(connectionId) == null;
         LOGGER.info("creating new stub for server {}", connectionId);
         ManagedChannel channel =
                 Grpc.newChannelBuilder(
@@ -216,39 +219,42 @@ public /* singleton */ class GuidanceStubManager {
                         .build();
         GuidanceStub stub = GuidanceGrpc.newStub(channel);
         this.stubs.put(connectionId, stub);
-        // TODO: move to other thread and call every minute
-        checkHealth();
+        initializeHealthCheck(connectionId);
     }
 
     // The health check is needed because grpc is lazy and doesn't actually
     // establish a connection until it is absolutely needed. That means the the
     // first missile fired would have to wait roughly half a second until the
     // first control input arrives. That is way too slow.
-    private void checkHealth() {
-        for (var stubEntry : this.stubs.entrySet()) {
-            int connectionId = stubEntry.getKey();
-            var stub = stubEntry.getValue();
-            HealthRequest healthRequest = HealthRequest.newBuilder().build();
+    private void initializeHealthCheck(int connectionId) {
+        this.helperExecutor.scheduleAtFixedRate(
+                () -> {
+                    var stub = this.stubs.get(connectionId);
+                    assert stub != null;
+                    HealthRequest healthRequest = HealthRequest.newBuilder().build();
 
-            StreamObserver<HealthResponse> healthResponseObserver =
-                    new StreamObserver<HealthResponse>() {
-                        @Override
-                        public void onNext(HealthResponse controlInput) {
-                            LOGGER.info("health check received for stub {}", connectionId);
-                        }
+                    StreamObserver<HealthResponse> healthResponseObserver =
+                            new StreamObserver<HealthResponse>() {
+                                @Override
+                                public void onNext(HealthResponse controlInput) {
+                                    LOGGER.info("health check received for stub {}", connectionId);
+                                }
 
-                        @Override
-                        public void onError(Throwable t) {
-                            LOGGER.error("health check failed for stub {}", connectionId);
-                        }
+                                @Override
+                                public void onError(Throwable t) {
+                                    LOGGER.error("health check failed for stub {}", connectionId);
+                                }
 
-                        @Override
-                        public void onCompleted() {
-                            LOGGER.info("health check completed for stub {}", connectionId);
-                        }
-                    };
-            stub.healthCheck(healthRequest, healthResponseObserver);
-        }
+                                @Override
+                                public void onCompleted() {
+                                    LOGGER.info("health check completed for stub {}", connectionId);
+                                }
+                            };
+                    stub.healthCheck(healthRequest, healthResponseObserver);
+                },
+                0,
+                HEALTH_CHECK_SCHEDULE,
+                TimeUnit.SECONDS);
     }
 
     private static String getServerAddress(int connectionId) {
