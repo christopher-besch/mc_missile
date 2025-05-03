@@ -208,6 +208,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         if (!this.hardware.seekerHeadShouldTargetEntity) {
             return;
         }
+        LOGGER.info("attempting target lock");
 
         World world = thisObject.getWorld();
         if (!(thisObject.getWorld() instanceof ServerWorld serverWorld)) {
@@ -251,12 +252,13 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                         .normalize();
         Entity bestTarget = null;
         // only accept values that are not outside our field of view
-        double maxDotProd = Math.cos(this.hardware.seekerHeadFOV);
+        double maxDotProd = Math.cos(Math.toRadians(this.hardware.seekerHeadFOV));
+        LOGGER.info("maxDotProd: {}", maxDotProd);
         for (Entity entity : targets) {
             Vec3d dir_to_target = entity.getPos().subtract(thisObject.getPos()).normalize();
             double dotProd = missile_heading.dotProduct(dir_to_target);
             // TODO: remove
-            LOGGER.info("{}", dotProd);
+            LOGGER.info("dotProd: {}", dotProd);
             // overwrite old data to include edge case
             if (dotProd >= maxDotProd) {
                 maxDotProd = dotProd;
@@ -264,7 +266,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
             }
         }
         // TODO: remove
-        LOGGER.info("{}", maxDotProd);
+        LOGGER.info("maxDotProd: {}", maxDotProd);
         return bestTarget;
     }
 
