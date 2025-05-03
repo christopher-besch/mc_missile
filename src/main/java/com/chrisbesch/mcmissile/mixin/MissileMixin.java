@@ -12,7 +12,10 @@ import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.FlyingItemEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.MovementType;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
@@ -48,6 +51,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static final Pattern MISSILE_NAME_PATTERN = Pattern.compile("^m/(\\d\\d)/(.+)$");
+    private static final int GLOWING_TICKS = 20 * 20;
 
     private final Random random = Random.create();
 
@@ -238,9 +242,11 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                                         // don't target yourself
                                         && possible_target != thisObject.getOwner());
         this.seekerHeadEntityLock = minAngleTarget(possible_targets);
-        // TODO: remove
-        if (this.seekerHeadEntityLock != null) {
-            this.seekerHeadEntityLock.setGlowing(true);
+        if (this.seekerHeadEntityLock != null
+                && this.seekerHeadEntityLock instanceof LivingEntity) {
+            ((LivingEntity) this.seekerHeadEntityLock)
+                    .addStatusEffect(
+                            new StatusEffectInstance(StatusEffects.GLOWING, GLOWING_TICKS));
         }
     }
 
@@ -279,7 +285,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                         .raycast(
                                 new RaycastContext(
                                         thisObject.getPos(),
-                                        entity.getPos(),
+                                        new Vec3d(entity.getX(), entity.getEyeY(), entity.getZ()),
                                         RaycastContext.ShapeType.COLLIDER,
                                         RaycastContext.FluidHandling.NONE,
                                         this))
