@@ -8,3 +8,7 @@ accessible method net/minecraft/entity/projectile/FireworkRocketEntity getExplos
 
 # not actually needed for overwrite when creating an abstract class
 # accessible method net/minecraft/entity/Entity initDataTracker (Lnet/minecraft/entity/data/DataTracker$Builder;)V
+
+accessible field net/minecraft/component/type/FireworkExplosionComponent shape Lnet/minecraft/component/type/FireworkExplosionComponent$Type;
+accessible field net/minecraft/component/type/FireworkExplosionComponent hasTrail Z
+accessible field net/minecraft/component/type/FireworkExplosionComponent hasTwinkle Z

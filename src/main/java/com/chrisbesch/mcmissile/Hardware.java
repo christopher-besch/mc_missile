@@ -2,6 +2,7 @@ package com.chrisbesch.mcmissile;
 
 import com.chrisbesch.mcmissile.guidance.MissileHardwareConfig;
 
+import net.minecraft.component.type.FireworkExplosionComponent;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.registry.Registries;
@@ -11,11 +12,33 @@ import net.minecraft.util.TypeFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.function.Function;
 
 public class Hardware {
     private static final String MOD_ID = "mc-missile";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+    // needs to be divisable by 3
+    private static final int PAPER_VALUE = 72;
+    // needs to be divisable by 9
+    private static final int GUNPOWDER_VALUE = 90;
+    // needs to be divisable by 3
+    private static final int DYE_VALUE = 36;
+    // needs to be divisable by 9
+    private static final int BLAZE_POWDER_VALUE = 270;
+    // needs to be divisable by 9
+    private static final int COAL_VALUE = 180;
+    // needs to be divisable by 3
+    private static final int GOLD_NUGGET_VALUE = 45;
+    // needs to be divisable by 3
+    private static final int HEAD_VALUE = 9000;
+    // needs to be divisable by 3
+    private static final int FEATHER_VALUE = 72;
+    // needs to be divisable by 3
+    private static final int DIAMOND_VALUE = 900;
+    // needs to be divisable by 3
+    private static final int GLOWSTONE_DUST_VALUE = 81;
 
     public Integer timeToLive;
 
@@ -142,5 +165,52 @@ public class Hardware {
     public int calculateCost() {
         // TODO:
         return 0;
+    }
+
+    public static int calculateBudget(
+            List<FireworkExplosionComponent> explosions, int flightDuration) {
+        LOGGER.info("calculating budget");
+        int budget = 0;
+        budget += PAPER_VALUE * 1 / 3;
+        budget += GUNPOWDER_VALUE * flightDuration / 3;
+        for (var explosion : explosions) {
+            switch (explosion.shape) {
+                case FireworkExplosionComponent.Type.SMALL_BALL:
+                    budget += GUNPOWDER_VALUE * 1 / 3;
+                    budget += DYE_VALUE * 1 / 3;
+                    break;
+                case FireworkExplosionComponent.Type.LARGE_BALL:
+                    // 1/3 in firework star + 1/9 in fire charge
+                    budget += GUNPOWDER_VALUE * 4 / 9;
+                    budget += DYE_VALUE * 1 / 3;
+                    budget += BLAZE_POWDER_VALUE * 1 / 9;
+                    budget += COAL_VALUE * 1 / 9;
+                    break;
+                case FireworkExplosionComponent.Type.STAR:
+                    budget += GUNPOWDER_VALUE * 1 / 3;
+                    budget += DYE_VALUE * 1 / 3;
+                    budget += GOLD_NUGGET_VALUE * 1 / 3;
+                    break;
+                case FireworkExplosionComponent.Type.CREEPER:
+                    budget += GUNPOWDER_VALUE * 1 / 3;
+                    budget += DYE_VALUE * 1 / 3;
+                    budget += HEAD_VALUE * 1 / 3;
+                    break;
+                case FireworkExplosionComponent.Type.BURST:
+                    budget += GUNPOWDER_VALUE * 1 / 3;
+                    budget += DYE_VALUE * 1 / 3;
+                    budget += FEATHER_VALUE * 1 / 3;
+                    break;
+            }
+            if (explosion.hasTrail) {
+                budget += DIAMOND_VALUE * 1 / 3;
+            }
+            if (explosion.hasTwinkle) {
+                budget += GLOWSTONE_DUST_VALUE * 1 / 3;
+            }
+            LOGGER.info("{} {} {}", explosion.shape, explosion.hasTrail, explosion.hasTwinkle);
+        }
+        LOGGER.info("{}", budget);
+        return budget;
     }
 }

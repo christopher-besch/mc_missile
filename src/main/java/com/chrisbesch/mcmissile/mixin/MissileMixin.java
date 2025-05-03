@@ -102,12 +102,13 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                         .setName(matcher.group(2))
                         // don't do negative numbers
                         .setId(Math.abs(this.random.nextInt()))
-                        // TODO: set proper budget
-                        // TODO: figuring out if the rocket has big balls isn't working
-                        // var bigBallCount = explosions.stream().filter(e -> e.shape ==
-                        // FireworkExplosionComponent.Type.BIG_BALL).count();
-                        // LOGGER.info("{}", bigBallCount);
-                        .setBudget(0);
+                        .setBudget(
+                                Hardware.calculateBudget(
+                                        explosions,
+                                        thisObject
+                                                .getStack()
+                                                .get(DataComponentTypes.FIREWORKS)
+                                                .flightDuration()));
 
         try {
             missileBuilder.setConnectionId(Integer.parseInt(matcher.group(1)));
