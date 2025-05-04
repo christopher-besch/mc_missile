@@ -51,7 +51,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static final Pattern MISSILE_NAME_PATTERN = Pattern.compile("^m/(\\d\\d)/(.+)$");
-    private static final int GLOWING_TICKS = 20 * 20;
+    private static final int GLOWING_TICKS = 20 * 2;
 
     private final Random random = Random.create();
 
