@@ -22,9 +22,14 @@ public class Mc_missile implements ModInitializer {
         // Proceed with mild caution.
 
         LOGGER.info("mc_missile booting up");
-        // TODO: load from environment
-        for (var connectionId : new int[] {69}) {
-            GuidanceStubManager.getInstance().createStub(connectionId);
+        String connectionIdStrsRaw = System.getenv("MC_MISSILE_GUIDANCE_CONNECTION_IDS");
+        if (connectionIdStrsRaw == null) {
+            throw new java.lang.RuntimeException(
+                    "MC_MISSILE_GUIDANCE_CONNECTION_IDS environment variable needs to be defined");
+        }
+        String[] connectionIdStrs = connectionIdStrsRaw.split(",");
+        for (String connectionIdStr : connectionIdStrs) {
+            GuidanceStubManager.getInstance().createStub(Integer.parseInt(connectionIdStr));
         }
     }
 }

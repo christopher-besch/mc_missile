@@ -24,13 +24,6 @@ import java.util.concurrent.TimeUnit;
 // This is done for security reasons as letting players define the entire address is unsafe.
 // All calls include the connection id so that the manager knows what server to connect to.
 public /* singleton */ class GuidanceStubManager {
-    // Prefix of the address used to connect to the guidance and control server.
-    // Set this to something that isn't a prefix of any other address on your network.
-    static final String GUIDANCE_CONTROL_ADDRESS_PREFIX = "MinecraftGuidanceControl";
-    // set this to true to test with a localhost guidance and control server
-    // TODO: make this a config parameter
-    static final boolean LOCALHOST_GUIDANCE_CONTROL = true;
-    static final int PORT = 42069;
     // in seconds
     static final int HEALTH_CHECK_SCHEDULE = 30;
 
@@ -258,9 +251,21 @@ public /* singleton */ class GuidanceStubManager {
     }
 
     private static String getServerAddress(int connectionId) {
-        if (LOCALHOST_GUIDANCE_CONTROL) {
-            return "127.0.0.1:" + PORT;
+        String portStr = System.getenv("MC_MISSILE_GUIDANCE_PORT");
+        if (portStr == null) {
+            throw new java.lang.RuntimeException(
+                    "MC_MISSILE_GUIDANCE_PORT environment variable needs to be defined");
         }
-        return GUIDANCE_CONTROL_ADDRESS_PREFIX + connectionId + ":" + PORT;
+        Integer port = Integer.parseInt(portStr);
+
+        if (System.getenv("MC_MISSILE_LOCALHOST_GUIDANCE_CONTROL") == "true") {
+            return "127.0.0.1:" + port;
+        }
+        String guidanceControlAddressPrefix = System.getenv("MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX");
+        if (guidanceControlAddressPrefix == null) {
+            throw new java.lang.RuntimeException(
+                    "MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX environment variable needs to be defined");
+        }
+        return guidanceControlAddressPrefix + connectionId + ":" + port;
     }
 }

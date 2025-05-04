@@ -1,0 +1,38 @@
+services:
+    Minecraft:
+        image: itzg/minecraft-server
+        container_name: "Minecraft"
+        volumes:
+            - "./data:/data"
+            - "./mods:/mods"
+        ports:
+            - "25565:25565"
+        tty: true
+        stdin_open: true
+        environment:
+            EULA: TRUE
+            TYPE: FABRIC
+            MODRINTH_PROJECTS: |
+                fabric-api
+            VERSION: "1.21.4"
+            # mc_missile settings #
+            MC_MISSILE_GUIDANCE_PORT: "42069"
+            # Prefix of the address used to connect to the guidance and control server.
+            # Set this to something that isn't a prefix of any other address on your network.
+            MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX: "MinecraftGuidanceControl"
+            MC_MISSILE_LOCALHOST_GUIDANCE_CONTROL: false
+            MC_MISSILE_GUIDANCE_CONNECTION_IDS: "69"
+        networks: ["internal", "common"]
+
+    MinecraftGuidanceControl69:
+        image: chrisbesch/mc_missile_guidance:0.1.0
+        container_name: "MinecraftGuidanceControl69"
+        networks: ["internal"]
+        environment:
+            PORT: "42069"
+
+networks:
+  internal:
+    internal: true
+  common:
+

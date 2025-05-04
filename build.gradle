@@ -2,6 +2,7 @@ plugins {
     id 'fabric-loom' version '1.9-SNAPSHOT'
     id 'maven-publish'
     id 'com.google.protobuf' version '0.9.4'
+    id "com.modrinth.minotaur" version "2.+"
 }
 
 version = project.mod_version
@@ -39,6 +40,54 @@ dependencies {
     implementation 'io.grpc:grpc-protobuf:1.70.0'
     implementation 'io.grpc:grpc-stub:1.70.0'
     compileOnly 'org.apache.tomcat:annotations-api:6.0.53' // necessary for Java 9+
+
+    // run `./gradlew dependencies --configuration runtimeClasspath` to find all transitive dependencies of grpc
+    include('io.grpc:grpc-protobuf:1.70.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('com.google.code.findbugs:jsr305:3.0.2')
+    include('com.google.errorprone:error_prone_annotations:2.30.0')
+    include('com.google.guava:guava:33.3.1-android')
+    include('com.google.guava:failureaccess:1.0.2')
+    include('com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava')
+    include('com.google.code.findbugs:jsr305:3.0.2')
+    include('org.checkerframework:checker-qual:3.43.0')
+    include('com.google.errorprone:error_prone_annotations:2.28.0')
+    include('com.google.j2objc:j2objc-annotations:3.0.0')
+    include('com.google.code.findbugs:jsr305:3.0.2')
+    include('com.google.protobuf:protobuf-java:3.25.5')
+    include('com.google.api.grpc:proto-google-common-protos:2.48.0')
+    include('com.google.protobuf:protobuf-java:3.25.5')
+    include('com.google.guava:guava:33.3.1-android')
+    include('io.grpc:grpc-protobuf-lite:1.70.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('com.google.code.findbugs:jsr305:3.0.2')
+    include('com.google.guava:guava:33.3.1-android')
+    include('io.grpc:grpc-stub:1.70.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('org.codehaus.mojo:animal-sniffer-annotations:1.24')
+    include('com.google.guava:guava:33.3.1-android')
+    include('com.google.errorprone:error_prone_annotations:2.30.0')
+    include('io.grpc:grpc-netty-shaded:1.70.0')
+    include('io.grpc:grpc-util:1.70.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('io.grpc:grpc-core:1.70.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('com.google.code.gson:gson:2.11.0')
+    include('com.google.android:annotations:4.1.1.4')
+    include('org.codehaus.mojo:animal-sniffer-annotations:1.24')
+    include('com.google.errorprone:error_prone_annotations:2.30.0')
+    include('com.google.guava:guava:33.3.1-android')
+    include('io.perfmark:perfmark-api:0.27.0')
+    include('io.grpc:grpc-context:1.70.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('org.codehaus.mojo:animal-sniffer-annotations:1.24')
+    include('com.google.guava:guava:33.3.1-android')
+    include('io.grpc:grpc-core:1.70.0')
+    include('com.google.guava:guava:33.3.1-android')
+    include('com.google.errorprone:error_prone_annotations:2.30.0')
+    include('io.perfmark:perfmark-api:0.27.0')
+    include('io.grpc:grpc-api:1.70.0')
+    include('org.codehaus.mojo:animal-sniffer-annotations:1.24')
 }
 
 processResources {
@@ -104,5 +153,21 @@ protobuf {
         all()*.plugins {
             grpc {}
         }
+    }
+}
+
+modrinth {
+    token = System.getenv("MODRINTH_TOKEN") // Remember to have the MODRINTH_TOKEN environment variable set or else this will fail - just make sure it stays private!
+    projectId = "mc-missile" // This can be the project ID or the slug. Either will work!
+    versionNumber = "0.1.0" // You don't need to set this manually. Will fail if Modrinth has this version already
+    versionType = "release" // This is the default -- can also be `beta` or `alpha`
+    uploadFile = remapJar // With Loom, this MUST be set to `remapJar` instead of `jar`!
+    gameVersions = ["1.21.4"] // Must be an array, even with only one version
+    loaders = ["fabric"] // Must also be an array - no need to specify this if you're using Loom or ForgeGradle
+    dependencies { // A special DSL for creating dependencies
+        // scope.type
+        // The scope can be `required`, `optional`, `incompatible`, or `embedded`
+        // The type can either be `project` or `version`
+        required.project "fabric-api" // Creates a new required dependency on Fabric API
     }
 }

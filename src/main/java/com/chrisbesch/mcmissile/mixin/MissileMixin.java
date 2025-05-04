@@ -194,9 +194,6 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                 } else {
                     this.hardware = requestedHardware;
                 }
-            } else {
-                // TODO: remove
-                LOGGER.info("don't load hardware config from guidance server this time");
             }
             applyControlInput(controlInput);
         }
@@ -259,20 +256,15 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         Entity bestTarget = null;
         // only accept values that are not outside our field of view
         double maxDotProd = Math.cos(Math.toRadians(this.hardware.seekerHeadFOV));
-        LOGGER.info("maxDotProd: {}", maxDotProd);
         for (Entity entity : targets) {
             Vec3d dir_to_target = entity.getPos().subtract(thisObject.getPos()).normalize();
             double dotProd = missile_heading.dotProduct(dir_to_target);
-            // TODO: remove
-            LOGGER.info("dotProd: {}", dotProd);
             // overwrite old data to include edge case
             if (dotProd >= maxDotProd) {
                 maxDotProd = dotProd;
                 bestTarget = entity;
             }
         }
-        // TODO: remove
-        LOGGER.info("maxDotProd: {}", maxDotProd);
         return bestTarget;
     }
 

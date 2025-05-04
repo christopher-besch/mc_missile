@@ -18,6 +18,11 @@ This is a [Fabric](https://wiki.fabricmc.net/start) Minecraft mod.
 - `./gradlew validateAccessWidener`
 - `./gradlew runServer`
 
+### Deploy
+- `cp ./env.sh.example ./env.sh` and enter your modrinth token (only do this once)
+- `source ./env.sh`
+- `./gradlew modrinth`
+
 ### Formatting
 - Download [google-java-format](https://github.com/google/google-java-format/releases)
 - run `find ./src -name '*.java' -type f -print0 | xargs -0 java -jar ~/dwn/google-java-format-1.26.0-all-deps.jar --aosp -r`
