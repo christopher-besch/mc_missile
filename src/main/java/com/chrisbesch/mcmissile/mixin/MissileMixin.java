@@ -199,7 +199,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         }
     }
 
-    // Always run this just before we sent the missile state to the guidance server.
+    // Always run this just before we send the missile state to the guidance server.
     private void lockIRSeeker() {
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
         // only lock onto first target
@@ -432,12 +432,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         LOGGER.info("missile tick {}", this.tickCount);
 
         // <- missile tick begins
-        //  <- client applies control input
+        //  <- client reads and applies last received control input
         //   <- client applies missile dynamics
         //    <- client sends state
         //         <- server sends control
         //             <- missile tick begins
-        //              <- client applies control input
+        //              <- client reads and applies last received control input
         //               <- client applies missile dynamics
         //                <- client sends state
         if (this.tickCount == 0) {
