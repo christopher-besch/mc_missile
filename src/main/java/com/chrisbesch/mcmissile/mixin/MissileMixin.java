@@ -73,6 +73,7 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
         super(entityType, world);
     }
 
+    // sets this.missile to the identified Missile or on failure, leaves it as null
     private void identifyMissile() {
         FireworkRocketEntity thisObject = (FireworkRocketEntity) (Object) this;
 
@@ -115,7 +116,12 @@ public abstract class MissileMixin extends ProjectileEntity implements FlyingIte
                                                 .flightDuration()));
 
         try {
-            missileBuilder.setConnectionId(Integer.parseInt(matcher.group(1)));
+            var connectionId = Integer.parseInt(matcher.group(1));
+            if (!GuidanceStubManager.getInstance().hasStub(connectionId)) {
+                LOGGER.info("rocket's connectionId is not known: {}", connectionId);
+                return;
+            }
+            missileBuilder.setConnectionId(connectionId);
         } catch (NumberFormatException e) {
             // this should never happen
             LOGGER.error("failed to convert connectionId in '{}'", customName.getString());

@@ -215,6 +215,10 @@ public /* singleton */ class GuidanceStubManager {
         initializeHealthCheck(connectionId);
     }
 
+    public boolean hasStub(int connectionId) {
+        return this.stubs.get(connectionId) != null;
+    }
+
     // The health check is needed because grpc is lazy and doesn't actually
     // establish a connection until it is absolutely needed. That means the the
     // first missile fired would have to wait roughly half a second until the
@@ -261,10 +265,12 @@ public /* singleton */ class GuidanceStubManager {
         if (System.getenv("MC_MISSILE_LOCALHOST_GUIDANCE_CONTROL") == "true") {
             return "127.0.0.1:" + port;
         }
-        String guidanceControlAddressPrefix = System.getenv("MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX");
+        String guidanceControlAddressPrefix =
+                System.getenv("MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX");
         if (guidanceControlAddressPrefix == null) {
             throw new java.lang.RuntimeException(
-                    "MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX environment variable needs to be defined");
+                    "MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX environment variable needs to be"
+                        + " defined");
         }
         return guidanceControlAddressPrefix + connectionId + ":" + port;
     }
