@@ -262,7 +262,8 @@ public /* singleton */ class GuidanceStubManager {
         }
         Integer port = Integer.parseInt(portStr);
 
-        if (System.getenv("MC_MISSILE_LOCALHOST_GUIDANCE_CONTROL") == "true") {
+        var useLocalhost = System.getenv("MC_MISSILE_LOCALHOST_GUIDANCE_CONTROL");
+        if (useLocalhost != null && useLocalhost.equals("true")) {
             LOGGER.warn("using localhost guidance server");
             return "127.0.0.1:" + port;
         }
