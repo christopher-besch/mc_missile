@@ -263,6 +263,7 @@ public /* singleton */ class GuidanceStubManager {
         Integer port = Integer.parseInt(portStr);
 
         if (System.getenv("MC_MISSILE_LOCALHOST_GUIDANCE_CONTROL") == "true") {
+            LOGGER.warn("using localhost guidance server");
             return "127.0.0.1:" + port;
         }
         String guidanceControlAddressPrefix =
@@ -272,6 +273,7 @@ public /* singleton */ class GuidanceStubManager {
                     "MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX environment variable needs to be"
                         + " defined");
         }
+        LOGGER.info("using {} prefix for guidance server", guidanceControlAddressPrefix);
         return guidanceControlAddressPrefix + connectionId + ":" + port;
     }
 }
