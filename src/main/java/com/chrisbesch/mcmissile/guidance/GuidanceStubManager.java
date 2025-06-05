@@ -272,7 +272,7 @@ public /* singleton */ class GuidanceStubManager {
         if (guidanceControlAddressPrefix == null) {
             throw new java.lang.RuntimeException(
                     "MC_MISSILE_GUIDANCE_CONTROL_ADDRESS_PREFIX environment variable needs to be"
-                        + " defined");
+                            + " defined");
         }
         LOGGER.info("using {} prefix for guidance server", guidanceControlAddressPrefix);
         return guidanceControlAddressPrefix + connectionId + ":" + port;

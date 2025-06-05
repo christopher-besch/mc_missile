@@ -20,25 +20,25 @@ public class Hardware {
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     // needs to be divisable by 3
-    private static final int PAPER_VALUE = 72;
+    private static final int PAPER_VALUE = 10 * 9;
     // needs to be divisable by 9
-    private static final int GUNPOWDER_VALUE = 90;
+    private static final int GUNPOWDER_VALUE = 3 * 9;
     // needs to be divisable by 3
-    private static final int DYE_VALUE = 36;
+    private static final int DYE_VALUE = 3 * 9;
     // needs to be divisable by 9
-    private static final int BLAZE_POWDER_VALUE = 270;
+    private static final int BLAZE_POWDER_VALUE = 100 * 9;
     // needs to be divisable by 9
-    private static final int COAL_VALUE = 180;
+    private static final int COAL_VALUE = 20 * 9;
     // needs to be divisable by 3
-    private static final int GOLD_NUGGET_VALUE = 45;
+    private static final int GOLD_NUGGET_VALUE = 3 * 9;
     // needs to be divisable by 3
-    private static final int HEAD_VALUE = 9000;
+    private static final int HEAD_VALUE = 10000 * 9;
     // needs to be divisable by 3
-    private static final int FEATHER_VALUE = 72;
+    private static final int FEATHER_VALUE = 20 * 9;
     // needs to be divisable by 3
-    private static final int DIAMOND_VALUE = 900;
+    private static final int DIAMOND_VALUE = 1000 * 9;
     // needs to be divisable by 3
-    private static final int GLOWSTONE_DUST_VALUE = 81;
+    private static final int GLOWSTONE_DUST_VALUE = 10 * 9;
 
     // There is no way to build a missile with a smaller budget.
     private static final int MIN_BUDGET =
