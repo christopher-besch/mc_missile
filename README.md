@@ -1,3 +1,5 @@
+# THIS PROJECT HAS BEEN MIGRATED TO: [codeberg.org/christopher-besch/mc_missile](https://codeberg.org/christopher-besch/mc_missile)
+
 # mc_missile
 This is a [Fabric](https://wiki.fabricmc.net/start) Minecraft mod.
 It allows all players to program guided missiles and fire them from a [crossbow](https://minecraft.wiki/w/Crossbow) or [dispenser](https://minecraft.wiki/w/Dispenser).
